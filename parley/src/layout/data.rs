@@ -8,7 +8,10 @@ use crate::layout::whitespace::whitespace_hangs;
 use crate::layout::{ContentWidths, LineMetrics, Style};
 use crate::resolve::ResolvedStyle;
 use crate::style::Brush;
-use crate::{IndentOptions, InlineBoxKind, OverflowWrap, TextWrapMode, WhiteSpaceCollapse};
+use crate::{
+    IndentOptions, InlineBoxKind, InlineBoxLineBreak, OverflowWrap, TextWrapMode,
+    WhiteSpaceCollapse,
+};
 use core::ops::Range;
 
 use alloc::vec::Vec;
@@ -326,6 +329,38 @@ impl<B: Brush> LayoutData<B> {
     pub(crate) fn calculate_content_widths(&self) -> ContentWidths {
         ContentWidthsMeasurer::new().measure(self)
     }
+
+    /// Whether there is a soft wrap opportunity right before the content that follows the
+    /// [`InlineBoxLineBreak::KeepWithNext`] box at `item_idx`: before the first atom of the next
+    /// text run, or before an atomic inline (which has one on each side). The `KeepWith*` and
+    /// out-of-flow boxes in between sit at the same position, so they are skipped.
+    pub(crate) fn soft_wrap_opportunity_after_box(&self, item_idx: usize) -> bool {
+        for item in &self.items[item_idx + 1..] {
+            match item.kind {
+                LayoutItemKind::TextRun => {
+                    return self
+                        .shaped_text
+                        .run_slice(item.index as u32)
+                        .shaped_clusters()
+                        .first()
+                        .is_some_and(|cluster| cluster.is_soft_wrap_opportunity_before());
+                }
+                LayoutItemKind::InlineBox => {
+                    let inline_box = &self.inline_boxes[item.index].inline_box;
+                    match inline_box.kind {
+                        InlineBoxKind::OutOfFlow => {}
+                        InlineBoxKind::InFlow => match inline_box.line_break {
+                            InlineBoxLineBreak::Auto => return true,
+                            InlineBoxLineBreak::KeepWithNext
+                            | InlineBoxLineBreak::KeepWithPrevious => {}
+                        },
+                        InlineBoxKind::CustomOutOfFlow => return false,
+                    }
+                }
+            }
+        }
+        false
+    }
 }
 
 struct ContentWidthsMeasurer {
@@ -347,6 +382,11 @@ struct ContentWidthsMeasurer {
     hangs_conditionally: bool,
 
     text_wrap_mode: TextWrapMode,
+
+    /// Set by a [`InlineBoxLineBreak::KeepWithNext`] box whose following content starts with a
+    /// soft wrap opportunity: that opportunity was taken before the box, so the content's own is
+    /// skipped.
+    glue_next: bool,
 }
 
 impl ContentWidthsMeasurer {
@@ -360,6 +400,7 @@ impl ContentWidthsMeasurer {
             running_hanging_whitespace: 0.,
             hangs_conditionally: false,
             text_wrap_mode: TextWrapMode::Wrap,
+            glue_next: false,
         }
     }
 
@@ -391,7 +432,7 @@ impl ContentWidthsMeasurer {
 
     #[inline(always)]
     fn measure<B: Brush>(mut self, layout_data: &LayoutData<B>) -> ContentWidths {
-        for item in &layout_data.items {
+        for (item_idx, item) in layout_data.items.iter().enumerate() {
             match item.kind {
                 LayoutItemKind::TextRun => {
                     let slice = layout_data.shaped_text.run_slice(item.index as u32);
@@ -422,7 +463,11 @@ impl ContentWidthsMeasurer {
                     }
                 }
                 LayoutItemKind::InlineBox => {
-                    self.measure_inline_box(&layout_data.inline_boxes[item.index].inline_box);
+                    let inline_box = &layout_data.inline_boxes[item.index].inline_box;
+                    let opportunity_after = inline_box.line_break
+                        == InlineBoxLineBreak::KeepWithNext
+                        && layout_data.soft_wrap_opportunity_after_box(item_idx);
+                    self.measure_inline_box(inline_box, opportunity_after);
                 }
             }
         }
@@ -463,6 +508,8 @@ impl ContentWidthsMeasurer {
         is_rtl: bool,
     ) {
         let clusters = slice.shaped_clusters();
+        // The first atom's opportunity may have been taken before a `KeepWithNext` box.
+        let glued = core::mem::take(&mut self.glue_next);
 
         // The spacing gap of the current atom.
         let mut gap = 0.;
@@ -478,6 +525,7 @@ impl ContentWidthsMeasurer {
                 if prev_text_wrap_mode == TextWrapMode::Wrap
                     && (cluster.is_soft_wrap_opportunity_before()
                         || style.overflow_wrap == OverflowWrap::Anywhere)
+                    && !(i == 0 && glued)
                 {
                     self.soft_break();
                 }
@@ -535,19 +583,45 @@ impl ContentWidthsMeasurer {
         }
     }
 
-    fn measure_inline_box(&mut self, inline_box: &InlineBox) {
-        if inline_box.kind == InlineBoxKind::InFlow {
-            // Inline boxes have soft wrap opportunities on both sides.
-            let wraps = self.text_wrap_mode == TextWrapMode::Wrap;
-            if wraps {
-                self.soft_break();
+    /// `opportunity_after`: for a [`InlineBoxLineBreak::KeepWithNext`] box, whether the content
+    /// after it starts with a soft wrap opportunity (see
+    /// [`LayoutData::soft_wrap_opportunity_after_box`]).
+    fn measure_inline_box(&mut self, inline_box: &InlineBox, opportunity_after: bool) {
+        if inline_box.kind != InlineBoxKind::InFlow {
+            return;
+        }
+        let wraps = self.text_wrap_mode == TextWrapMode::Wrap;
+        match inline_box.line_break {
+            InlineBoxLineBreak::Auto => {
+                // Soft wrap opportunities on both sides, unless the one before was already
+                // taken before a `KeepWithNext` box.
+                if wraps && !core::mem::take(&mut self.glue_next) {
+                    self.soft_break();
+                }
+                // Inline boxes don't hang.
+                self.running_hanging_whitespace = 0.0;
+                self.running_min_width += inline_box.width;
+                self.running_max_width += inline_box.width;
+                if wraps {
+                    self.soft_break();
+                }
             }
-            // Inline boxes don't hang.
-            self.running_hanging_whitespace = 0.0;
-            self.running_min_width += inline_box.width;
-            self.running_max_width += inline_box.width;
-            if wraps {
-                self.soft_break();
+            InlineBoxLineBreak::KeepWithNext => {
+                // Take the following content's opportunity here, once for a run of such boxes.
+                if opportunity_after && !self.glue_next {
+                    if wraps {
+                        self.soft_break();
+                    }
+                    self.glue_next = true;
+                }
+                self.running_hanging_whitespace = 0.0;
+                self.running_min_width += inline_box.width;
+                self.running_max_width += inline_box.width;
+            }
+            InlineBoxLineBreak::KeepWithPrevious => {
+                self.running_hanging_whitespace = 0.0;
+                self.running_min_width += inline_box.width;
+                self.running_max_width += inline_box.width;
             }
         }
     }

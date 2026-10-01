@@ -24,6 +24,32 @@ pub struct InlineBox {
     pub baseline: Option<f32>,
     /// Vertical alignment of the box within its line, relative to the enclosing style span.
     pub vertical_align: VerticalAlign,
+    /// Where lines may break around the box. Only affects in-flow boxes.
+    pub line_break: InlineBoxLineBreak,
+}
+
+/// Where lines may break around an in-flow [`InlineBox`].
+///
+/// An atomic inline (CSS `display: inline-block`, an image) has a soft wrap opportunity on each
+/// side. The edges of a non-atomic inline box don't: a span's start margin, border and padding
+/// belong on the line of the span's first content, and its end edge on the line of its last. To
+/// lay those edges out with inline boxes, give the box for the start edge
+/// [`KeepWithNext`](Self::KeepWithNext) and the one for the end edge
+/// [`KeepWithPrevious`](Self::KeepWithPrevious). Such an edge takes up its width but adds nothing
+/// to the line's height: the inline's height comes from its content (CSS 2 § 10.8), and its
+/// vertical padding and border don't change the line.
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Default)]
+pub enum InlineBoxLineBreak {
+    /// A soft wrap opportunity on each side of the box.
+    #[default]
+    Auto,
+    /// No opportunity of the box's own, and the box stays on the line of the content after it: an
+    /// opportunity right before that content is taken before the box instead. Consecutive
+    /// `KeepWithNext` and `KeepWithPrevious` boxes (an empty span, or nested span starts) stay
+    /// together with that content too.
+    KeepWithNext,
+    /// No opportunity of the box's own, and the box stays on the line of the content before it.
+    KeepWithPrevious,
 }
 
 /// An [`InlineBox`] together with the style index of the span that contains it.

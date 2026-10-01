@@ -22,8 +22,8 @@ use crate::layout::{
 };
 use crate::style::Brush;
 use crate::{
-    BaselineShift, InlineBox, InlineBoxKind, LineHeight, OverflowWrap, TextWrapMode, VerticalAlign,
-    WhiteSpaceCollapse,
+    BaselineShift, InlineBox, InlineBoxKind, InlineBoxLineBreak, LineHeight, OverflowWrap,
+    TextWrapMode, VerticalAlign, WhiteSpaceCollapse,
 };
 
 use core::ops::Range;
@@ -83,6 +83,12 @@ struct LineState {
     /// These are the line's justification opportunities, before subtracting those that end up in
     /// the line's hanging whitespace.
     num_word_separators: u32,
+
+    /// Set by an [`InlineBoxLineBreak::KeepWithNext`] box whose following content starts with a
+    /// soft wrap opportunity: that opportunity was taken before the box, so the content's own is
+    /// not marked again. Saved and restored with the line-breaking opportunities, like the rest of
+    /// the line state.
+    glue_next: bool,
 }
 
 impl LineState {
@@ -91,6 +97,7 @@ impl LineState {
         self.x = 0.0;
         self.box_metrics.reset();
         self.num_word_separators = 0;
+        self.glue_next = false;
     }
 }
 
@@ -739,7 +746,9 @@ impl<'a, B: Brush> BreakLines<'a, B> {
     }
 
     /// Add the layout's inline box `index` to the current line. Out-of-flow boxes contribute
-    /// nothing to the line's metrics.
+    /// nothing to the line's metrics, and neither do the edges of non-atomic inline boxes (boxes
+    /// with a `line_break` other than `Auto`): such an inline's height on the line comes from its
+    /// content, as in CSS 2 § 10.8, not from its edges.
     fn append_layout_inline_box(&mut self, index: usize, next_x: f32) {
         let quantize = self.layout.data.quantize;
         let layout_box = &mut self.layout.data.inline_boxes[index];
@@ -752,8 +761,13 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                 quantize,
             );
             layout_box.baseline_offset = placement.baseline_offset;
-            self.state
-                .append_aligned_inline_box_to_line(next_x, inline_box, placement, quantize);
+            if inline_box.line_break == InlineBoxLineBreak::Auto {
+                self.state
+                    .append_aligned_inline_box_to_line(next_x, inline_box, placement, quantize);
+            } else {
+                self.state
+                    .append_inline_box_to_line(next_x, f32::NEG_INFINITY, f32::NEG_INFINITY);
+            }
         } else {
             self.state
                 .append_inline_box_to_line(next_x, f32::NEG_INFINITY, f32::NEG_INFINITY);
@@ -954,6 +968,28 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                         }
                     };
 
+                    let line_break = inline_box.line_break;
+                    let wraps = self.state.line.text_wrap_mode == TextWrapMode::Wrap;
+
+                    // A box kept with the content after it takes that content's line-breaking
+                    // opportunity, so a break there goes before the box (once for consecutive
+                    // such boxes).
+                    if line_break == InlineBoxLineBreak::KeepWithNext
+                        && !self.state.line.glue_next
+                        && self
+                            .layout
+                            .data
+                            .soft_wrap_opportunity_after_box(self.state.item_idx)
+                    {
+                        if wraps && self.state.line.x != 0.0 {
+                            self.state.mark_line_break_opportunity();
+                        }
+                        self.state.line.glue_next = true;
+                    }
+                    // An atomic inline right after such a box takes nothing more.
+                    let glued_before = line_break == InlineBoxLineBreak::Auto
+                        && core::mem::take(&mut self.state.line.glue_next);
+
                     // Compute the x position of the content being currently processed
                     let next_x = self.state.line.x + width_contribution;
 
@@ -964,16 +1000,15 @@ impl<'a, B: Brush> BreakLines<'a, B> {
 
                     // If the box fits on the current line (or we are at the start of the current line)
                     // then simply move on to the next item
-                    if next_x <= max_advance || self.state.line.text_wrap_mode != TextWrapMode::Wrap
-                    {
+                    if next_x <= max_advance || !wraps {
                         self.append_layout_inline_box(item.index, next_x);
 
-                        // There is a soft wrap opportunity after an inline box, unless wrapping
-                        // is disabled
-                        if self.state.line.text_wrap_mode == TextWrapMode::Wrap {
+                        // There is a soft wrap opportunity after an atomic inline box, unless
+                        // wrapping is disabled
+                        if wraps && line_break == InlineBoxLineBreak::Auto {
                             self.state.mark_line_break_opportunity();
                         }
-                    } else {
+                    } else if line_break == InlineBoxLineBreak::Auto && !glued_before {
                         // If we're at the start of the line, this box will never fit, so consume it and accept the overflow.
                         let reason = if self.state.line.x == 0.0 {
                             self.append_layout_inline_box(item.index, next_x);
@@ -982,6 +1017,23 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                             BreakReason::Regular
                         };
                         return self.start_new_line(reason, max_advance, line_indent);
+                    }
+                    // A box kept with its neighbours has no opportunity of its own: like text that
+                    // doesn't fit, take the last opportunity on the line, or overflow.
+                    else if self.state.line.x == 0.0 {
+                        self.append_layout_inline_box(item.index, next_x);
+                    } else if let Some(prev) = self.state.prev_boundary.take() {
+                        self.state.reset_to(prev);
+                        return self.start_new_line(BreakReason::Regular, max_advance, line_indent);
+                    } else if let Some(prev_emergency) = self.state.emergency_boundary.take() {
+                        self.state.reset_to(prev_emergency);
+                        return self.start_new_line(
+                            BreakReason::Emergency,
+                            max_advance,
+                            line_indent,
+                        );
+                    } else {
+                        self.append_layout_inline_box(item.index, next_x);
                     }
                 }
                 LayoutItemKind::TextRun => {
@@ -998,6 +1050,8 @@ impl<'a, B: Brush> BreakLines<'a, B> {
 
                     // Iterate over the remaining atoms in the Run
                     for atom in slice.atoms_from(self.state.cluster_idx) {
+                        // Whether this atom's opportunity was taken before a `KeepWithNext` box.
+                        let glued = core::mem::take(&mut self.state.line.glue_next);
                         // Retrieve metadata about the atom
                         let first_character = &atom.characters()[0];
                         let whitespace = first_character.whitespace;
@@ -1037,7 +1091,7 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                         } else if is_soft_wrap_opportunity && text_wrap_mode == TextWrapMode::Wrap {
                             // We don't record boundaries when the advance is 0. As we do not want overflowing content to cause extra consecutive
                             // line breaks. We should accept the overflowing fragment in that scenario.
-                            if self.state.line.x != 0.0 {
+                            if self.state.line.x != 0.0 && !glued {
                                 self.state.mark_line_break_opportunity();
                                 // break_opportunity = true;
                             }

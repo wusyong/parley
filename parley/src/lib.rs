@@ -47,7 +47,7 @@
 //! builder.push(StyleProperty::FontWeight(FontWeight::new(600.0)), 0..4);
 //!
 //! // Add a box to be laid out inline with the text
-//! builder.push_inline_box(InlineBox { id: 0, kind: InlineBoxKind::InFlow, index: 5, width: 50.0, height: 50.0, baseline: None, vertical_align: VerticalAlign::BASELINE });
+//! builder.push_inline_box(InlineBox { id: 0, kind: InlineBoxKind::InFlow, index: 5, width: 50.0, height: 50.0, baseline: None, vertical_align: VerticalAlign::BASELINE, line_break: Default::default() });
 //!
 //! // Build the builder into a Layout
 //! let mut layout: Layout<()> = builder.build(&TEXT);
@@ -135,7 +135,7 @@ pub use parley_engine::break_overrides::{
 pub use builder::{RangedBuilder, StyleRunBuilder, TreeBuilder};
 pub use context::LayoutContext;
 pub use font::FontContext;
-pub use inline_box::{InlineBox, InlineBoxKind};
+pub use inline_box::{InlineBox, InlineBoxKind, InlineBoxLineBreak};
 #[doc(inline)]
 pub use layout::Layout;
 pub use util::BoundingBox;
