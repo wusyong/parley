@@ -463,10 +463,18 @@ impl ContentWidthsMeasurer {
                     }
                 }
                 LayoutItemKind::InlineBox => {
-                    let inline_box = &layout_data.inline_boxes[item.index].inline_box;
+                    let layout_box = &layout_data.inline_boxes[item.index];
+                    let inline_box = &layout_box.inline_box;
                     let opportunity_after = inline_box.line_break
                         == InlineBoxLineBreak::KeepWithNext
                         && layout_data.soft_wrap_opportunity_after_box(item_idx);
+                    // kun: an atomic inline wraps as the span it is in does (as in the line
+                    // breaker).
+                    if inline_box.line_break == InlineBoxLineBreak::Auto {
+                        self.text_wrap_mode = layout_data.styles
+                            [usize::from(layout_box.parent_style_index)]
+                        .text_wrap_mode;
+                    }
                     self.measure_inline_box(inline_box, opportunity_after);
                 }
             }

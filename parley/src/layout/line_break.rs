@@ -969,6 +969,16 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                     };
 
                     let line_break = inline_box.line_break;
+                    // kun: an atomic inline wraps as the span it is in does. The mode is
+                    // otherwise only set by text, so one first on a line in a `nowrap` span took
+                    // the default (`Wrap`) and broke the line after it. An edge (kept with the
+                    // content next to it) has no opportunity of its own: the one next to it is
+                    // the content's, so it leaves the mode as the content has it.
+                    if line_break == InlineBoxLineBreak::Auto {
+                        let parent = self.layout.data.inline_boxes[item.index].parent_style_index;
+                        self.state.line.text_wrap_mode =
+                            self.layout.data.styles[usize::from(parent)].text_wrap_mode;
+                    }
                     let wraps = self.state.line.text_wrap_mode == TextWrapMode::Wrap;
 
                     // A box kept with the content after it takes that content's line-breaking
