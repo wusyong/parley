@@ -427,6 +427,10 @@ pub struct LineBreakData {
     pub reason: BreakReason,
     /// The computed advance (width) of the line
     pub advance: f32,
+    /// kun: the part of `advance` that is whitespace hanging past the line's end, as in
+    /// `LineMetrics::hanging_advance`: a caller placing each line in its own room (beside
+    /// floats) needs it to tell whether the line's content fit.
+    pub hanging_advance: f32,
     /// The computed height of the line
     pub line_height: f32,
     /// The position of the top of the line
@@ -826,6 +830,7 @@ impl<'a, B: Brush> BreakLines<'a, B> {
         LineBreakData {
             reason,
             advance: line.metrics.advance,
+            hanging_advance: line.metrics.hanging_advance,
             line_height: line.size(),
             line_y_start,
             line_y_end: self.state.line_y,
