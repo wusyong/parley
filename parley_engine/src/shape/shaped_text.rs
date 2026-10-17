@@ -219,6 +219,22 @@ impl ShapedText {
         }
     }
 
+    // kun: for a layout that takes the shaping of another with the same
+    // text, styled otherwise in what doesn't change shaping (only its
+    // colors, say): each character takes this one's style, and each shaped
+    // cluster its first character's, as shaping gives them.
+    #[doc(hidden)]
+    pub fn set_style_indices(&mut self, style_indices: &[u16]) {
+        for (character, &style_index) in self.characters.iter_mut().zip(style_indices) {
+            character.style_index = style_index;
+        }
+        for shaped_cluster in self.shaped_clusters.iter_mut() {
+            if let Some(character) = self.characters.get(shaped_cluster.chars_range.0 as usize) {
+                shaped_cluster.style_index = character.style_index;
+            }
+        }
+    }
+
     /// The character data of the text, in logical order.
     ///
     /// [`ShapedRun::characters_range`] indexes into this. The nth [`Character`] corresponds exactly

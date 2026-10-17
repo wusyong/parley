@@ -4,6 +4,10 @@
 //! Text shaping implementation using `harfrust`for shaping
 //! and `icu` for text analysis.
 
+// kun: shapings kept for layouts alike.
+mod cache;
+pub(crate) use cache::ShapeCache;
+
 use alloc::vec::Vec;
 use parley_engine::shape::{CharCluster, Coverage};
 use parley_engine::{
@@ -54,6 +58,8 @@ pub(crate) fn shape_text<'a, B: Brush>(
     mut text: &str,
     layout: &mut Layout<B>,
     analysis_data_sources: &AnalysisDataSources,
+    // kun: the shapings kept (`cache`).
+    cache: &mut ShapeCache,
 ) {
     // If we have both empty text and no inline boxes, shape with a fake space
     // to generate metrics that can be used to size a cursor.
@@ -179,16 +185,56 @@ pub(crate) fn shape_text<'a, B: Brush>(
         })
     };
 
-    let font_selector = FontSelector::new(&mut fq, rcx, styles, analysis_data_sources);
-
-    scx.shape_text(
-        text,
+    // kun: the shaping of a layout with the same text, styled the same in
+    // what changes shaping, if one was kept; each character takes this
+    // layout's style.
+    let key = cache::Key::new(
+        rcx,
+        styles,
+        inline_boxes,
         analysis,
         char_style_indices,
-        items,
-        font_selector,
-        &mut layout.data.shaped_text,
+        text,
+        cache.hasher(),
     );
+    if let Some(shaped) = cache.get(&key) {
+        layout.data.shaped_text.clone_from(shaped);
+        layout
+            .data
+            .shaped_text
+            .set_style_indices(char_style_indices);
+        cache.reused += 1;
+        // What shaping it again gives.
+        #[cfg(debug_assertions)]
+        {
+            let mut fresh = parley_engine::ShapedText::new();
+            let font_selector = FontSelector::new(&mut fq, rcx, styles, analysis_data_sources);
+            scx.shape_text(
+                text,
+                analysis,
+                char_style_indices,
+                items,
+                font_selector,
+                &mut fresh,
+            );
+            debug_assert!(
+                cache::same_shaping(&fresh, &layout.data.shaped_text),
+                "a kept shaping is what shaping gives"
+            );
+        }
+    } else {
+        let font_selector = FontSelector::new(&mut fq, rcx, styles, analysis_data_sources);
+
+        scx.shape_text(
+            text,
+            analysis,
+            char_style_indices,
+            items,
+            font_selector,
+            &mut layout.data.shaped_text,
+        );
+        cache.insert(key, &layout.data.shaped_text);
+    }
 
     let mut inline_box_iter = inline_boxes
         .iter()

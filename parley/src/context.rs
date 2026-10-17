@@ -40,6 +40,8 @@ pub struct LayoutContext<B: Brush = [u8; 4]> {
     /// Style index for each character, parallel to [`Analysis::char_info`].
     pub(crate) char_style_indices: Vec<u16>,
     pub(crate) scx: Shaper,
+    // kun: shapings kept for layouts alike.
+    pub(crate) shape_cache: super::shape::ShapeCache,
 
     // Unicode analysis data sources (provided by icu)
     pub(crate) analysis_data_sources: AnalysisDataSources,
@@ -61,7 +63,14 @@ impl<B: Brush> LayoutContext<B> {
             char_style_indices: vec![],
             analysis_data_sources: AnalysisDataSources::new(),
             scx: Shaper::default(),
+            shape_cache: super::shape::ShapeCache::default(),
         }
+    }
+
+    // kun: how many layouts took the shaping of one alike, for tests.
+    #[doc(hidden)]
+    pub fn shapings_reused(&self) -> usize {
+        self.shape_cache.reused
     }
 
     fn resolve_style_set(
