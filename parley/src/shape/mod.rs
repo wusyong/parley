@@ -312,8 +312,10 @@ struct FontSelector<'a, 'b, B: Brush> {
     variations: &'a [FontVariation],
     features: &'a [FontFeature],
 
-    /// Whether [`Self::query`] yields any font, cached.
-    query_yields_font: Option<bool>,
+    /// The first font [`Self::query`] yields with a charmap, if any, cached.
+    ///
+    /// kun: upstream caches only whether there is one (`query_yields_font`).
+    first_font: Option<Option<QueryFont>>,
 
     /// The font to use if [`Self::query`] doesn't return any font.
     last_resort_font: LastResortFont,
@@ -343,7 +345,7 @@ impl<'a, 'b, B: Brush> FontSelector<'a, 'b, B> {
             attrs,
             variations: &[],
             features: &[],
-            query_yields_font: None,
+            first_font: None,
             last_resort_font: LastResortFont::Unresolved,
 
             analysis_data_sources,
@@ -361,7 +363,7 @@ impl<'a, 'b, B: Brush> parley_engine::FontSelector for FontSelector<'a, 'b, B> {
             segment.script,
             options.language.as_ref(),
         ));
-        self.query_yields_font = None;
+        self.first_font = None;
     }
 
     fn select_font(
@@ -385,11 +387,11 @@ impl<'a, 'b, B: Brush> parley_engine::FontSelector for FontSelector<'a, 'b, B> {
                 let emoji_family = QueryFamily::Generic(GenericFamily::Emoji);
                 self.query.set_families(fonts.chain(once(emoji_family)));
                 self.fonts_id = None;
-                self.query_yields_font = None;
+                self.first_font = None;
             } else if self.fonts_id != Some(fonts_id) {
                 self.query.set_families(fonts);
                 self.fonts_id = Some(fonts_id);
-                self.query_yields_font = None;
+                self.first_font = None;
             }
 
             let attrs = fontique::Attributes {
@@ -400,7 +402,7 @@ impl<'a, 'b, B: Brush> parley_engine::FontSelector for FontSelector<'a, 'b, B> {
             if self.attrs != attrs {
                 self.query.set_attributes(attrs);
                 self.attrs = attrs;
-                self.query_yields_font = None;
+                self.first_font = None;
             }
             self.variations = self.rcx.variations(style.font_variations).unwrap_or(&[]);
             self.features = self.rcx.features(style.font_features).unwrap_or(&[]);
@@ -412,19 +414,19 @@ impl<'a, 'b, B: Brush> parley_engine::FontSelector for FontSelector<'a, 'b, B> {
         // this check and do the last-resort scan after the failed query:
         // <https://blog.rust-lang.org/2026/08/04/enabling-polonius-alpha-on-nightly/>.
         let query = &mut *self.query;
-        let query_yields_font = *self.query_yields_font.get_or_insert_with(|| {
-            let mut yields_font = false;
+        let first_font = self.first_font.get_or_insert_with(|| {
+            let mut first_font = None;
             query.matches_with(|font| {
                 if font.charmap().is_some() {
-                    yields_font = true;
+                    first_font = Some(font.clone());
                     fontique::QueryStatus::Stop
                 } else {
                     fontique::QueryStatus::Continue
                 }
             });
-            yields_font
+            first_font
         });
-        if !query_yields_font {
+        if first_font.is_none() {
             if matches!(self.last_resort_font, LastResortFont::Unresolved) {
                 if let Some(font) = any_font(self.query) {
                     self.last_resort_font = LastResortFont::Resolved(FontInstance {
@@ -448,49 +450,91 @@ impl<'a, 'b, B: Brush> parley_engine::FontSelector for FontSelector<'a, 'b, B> {
             };
         }
 
-        let mut selected_font = None;
-        let mut best_coverage = Coverage::NONE;
-
-        self.query.matches_with(|font| {
-            let Some(charmap) = font.charmap() else {
-                return fontique::QueryStatus::Continue;
-            };
-
-            let coverage = cluster.calculate_coverage(
-                |ch| {
-                    charmap
-                        .map(ch)
-                        .map(|g| {
-                            // Any non-zero value indicates the existence of a glyph.
-                            g != 0
-                        })
-                        .unwrap_or_default()
-                },
-                self.analysis_data_sources,
-            );
-            if coverage > best_coverage {
-                selected_font = Some(font);
-                best_coverage = coverage;
-
-                if coverage.is_complete() {
-                    fontique::QueryStatus::Stop
-                } else {
-                    fontique::QueryStatus::Continue
-                }
-            } else {
-                if selected_font.is_none() {
-                    selected_font = Some(font);
-                }
-                fontique::QueryStatus::Continue
+        // kun: the query below picks the first font that covers the cluster completely, so when
+        // the first font with a charmap does, it is the answer: most clusters take it without
+        // going through the query (Blink shapes a run with its primary font first, too). A debug
+        // build checks it against the whole query.
+        if let Some(Some(first)) = &self.first_font
+            && let Some(charmap) = first.charmap()
+            && cluster
+                .calculate_coverage(
+                    |ch| charmap.map(ch).is_some_and(|g| g != 0),
+                    self.analysis_data_sources,
+                )
+                .is_complete()
+        {
+            #[cfg(debug_assertions)]
+            {
+                let queried = best_font(self.query, cluster, self.analysis_data_sources);
+                assert!(
+                    queried.is_some_and(|font| font.family == first.family
+                        && font.blob.id() == first.blob.id()
+                        && font.index == first.index
+                        && font.synthesis == first.synthesis),
+                    "the first font isn't the query's"
+                );
             }
-        });
+            return Some(FontInstanceRef {
+                data: &first.blob,
+                index: first.index,
+                synthesis: &first.synthesis,
+            });
+        }
 
-        selected_font.map(|font| FontInstanceRef {
+        best_font(self.query, cluster, self.analysis_data_sources).map(|font| FontInstanceRef {
             data: &font.blob,
             index: font.index,
             synthesis: &font.synthesis,
         })
     }
+}
+
+// kun: the query's part of `select_font`, so that a debug build can run it again.
+/// The first font `query` yields that covers `cluster` completely, else the one that covers the
+/// most of it.
+fn best_font<'q>(
+    query: &'q mut Query<'_>,
+    cluster: &mut CharCluster,
+    analysis_data_sources: &AnalysisDataSources,
+) -> Option<&'q QueryFont> {
+    let mut selected_font = None;
+    let mut best_coverage = Coverage::NONE;
+
+    query.matches_with(|font| {
+        let Some(charmap) = font.charmap() else {
+            return fontique::QueryStatus::Continue;
+        };
+
+        let coverage = cluster.calculate_coverage(
+            |ch| {
+                charmap
+                    .map(ch)
+                    .map(|g| {
+                        // Any non-zero value indicates the existence of a glyph.
+                        g != 0
+                    })
+                    .unwrap_or_default()
+            },
+            analysis_data_sources,
+        );
+        if coverage > best_coverage {
+            selected_font = Some(font);
+            best_coverage = coverage;
+
+            if coverage.is_complete() {
+                fontique::QueryStatus::Stop
+            } else {
+                fontique::QueryStatus::Continue
+            }
+        } else {
+            if selected_font.is_none() {
+                selected_font = Some(font);
+            }
+            fontique::QueryStatus::Continue
+        }
+    });
+
+    selected_font
 }
 
 /// Just query for any generic family's font from the font collection.
