@@ -208,6 +208,9 @@ pub(crate) struct LayoutData<B: Brush> {
     pub(crate) indent_amount: f32,
     /// Options controlling text-indent behavior (each-line, hanging).
     pub(crate) indent_options: IndentOptions,
+    /// kun: whether the line after a final forced break (a newline ending the text), which has
+    /// nothing on it, is made (`Layout::set_line_after_final_break`).
+    pub(crate) line_after_final_break: bool,
 }
 
 impl<B: Brush> Default for LayoutData<B> {
@@ -233,6 +236,7 @@ impl<B: Brush> Default for LayoutData<B> {
             layout_max_advance: 0.0,
             indent_amount: 0.0,
             indent_options: IndentOptions::default(),
+            line_after_final_break: true,
         }
     }
 }
@@ -249,6 +253,7 @@ impl<B: Brush> LayoutData<B> {
         self.layout_max_advance = 0.0;
         self.indent_amount = 0.0;
         self.indent_options = IndentOptions::default();
+        self.line_after_final_break = true;
         self.styles.clear();
         self.style_metrics.clear();
         self.inline_boxes.clear();

@@ -794,6 +794,18 @@ impl<'a, B: Brush> BreakLines<'a, B> {
             line_indent,
         );
 
+        // kun: a last line with no items after another is the line after a final forced break
+        // (the text ended with the break; see `finish_line`). Unless the layout makes it, it is
+        // taken back and nothing is yielded.
+        if reason == BreakReason::None
+            && !self.layout.data.line_after_final_break
+            && self.lines.lines.last().unwrap().item_range.is_empty()
+            && self.lines.lines.len() > 1
+        {
+            self.lines.lines.pop();
+            return None;
+        }
+
         // A line containing only empty inline boxes (and no text) is an invisible line box with
         // zero height; the strut only applies once the line has content. The trailing empty line
         // after a final newline has no items and keeps the strut so the cursor has a position.
