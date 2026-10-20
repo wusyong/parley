@@ -275,6 +275,25 @@ pub enum StyleProperty<'a, B: Brush> {
     TextWrapMode(TextWrapMode),
     /// Whitespace collapsing and hanging behavior.
     WhiteSpaceCollapse(WhiteSpaceCollapse),
+    /// kun: where a tab reaches (CSS `tab-size`); `None` leaves it its shaped advance.
+    TabStops(Option<TabStops>),
+}
+
+/// kun: tab stops for CSS `tab-size`, in layout units before the display scale, worked out by
+/// the embedder (a number of spaces is counted in the block container's space).
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct TabStops {
+    /// The distance between tab stops from the line's start edge; a tab with none (0) has only
+    /// its letter spacing.
+    pub interval: f32,
+    /// The least a tab advances: nearer than this, it goes on to the stop after.
+    pub min_advance: f32,
+}
+
+impl<B: Brush> From<Option<TabStops>> for StyleProperty<'_, B> {
+    fn from(value: Option<TabStops>) -> Self {
+        StyleProperty::TabStops(value)
+    }
 }
 
 /// Unresolved styles.
@@ -332,6 +351,8 @@ pub struct TextStyle<'family, 'settings, B: Brush> {
     pub text_wrap_mode: TextWrapMode,
     /// Whitespace collapsing and hanging behavior.
     pub white_space_collapse: WhiteSpaceCollapse,
+    /// kun: where a tab reaches (CSS `tab-size`); `None` leaves it its shaped advance.
+    pub tab_stops: Option<TabStops>,
 }
 
 impl<B: Brush> Default for TextStyle<'static, 'static, B> {
@@ -363,6 +384,7 @@ impl<B: Brush> Default for TextStyle<'static, 'static, B> {
             overflow_wrap: OverflowWrap::default(),
             text_wrap_mode: TextWrapMode::default(),
             white_space_collapse: WhiteSpaceCollapse::default(),
+            tab_stops: None,
         }
     }
 }

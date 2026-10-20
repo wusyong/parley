@@ -18,7 +18,7 @@ use crate::font::FontContext;
 use crate::style::TextStyle;
 use crate::util::nearly_eq;
 use crate::{LineBreak, LineHeight, OverflowWrap, VerticalAlign, layout};
-use crate::{TextWrapMode, WhiteSpaceCollapse, WordBreak};
+use crate::{TabStops, TextWrapMode, WhiteSpaceCollapse, WordBreak};
 use core::borrow::Borrow;
 use core::ops::Range;
 use fontique::FamilyId;
@@ -169,6 +169,7 @@ impl ResolveContext {
             StyleProperty::OverflowWrap(value) => OverflowWrap(*value),
             StyleProperty::TextWrapMode(value) => TextWrapMode(*value),
             StyleProperty::WhiteSpaceCollapse(value) => WhiteSpaceCollapse(*value),
+            StyleProperty::TabStops(value) => TabStops(scale_tab_stops(*value, scale)),
         }
     }
 
@@ -210,6 +211,7 @@ impl ResolveContext {
             overflow_wrap: raw_style.overflow_wrap,
             text_wrap_mode: raw_style.text_wrap_mode,
             white_space_collapse: raw_style.white_space_collapse,
+            tab_stops: scale_tab_stops(raw_style.tab_stops, scale),
         }
     }
 
@@ -400,6 +402,16 @@ pub(crate) enum ResolvedProperty<B: Brush> {
     TextWrapMode(TextWrapMode),
     /// Whitespace collapsing and hanging behavior.
     WhiteSpaceCollapse(WhiteSpaceCollapse),
+    /// kun: where a tab reaches.
+    TabStops(Option<TabStops>),
+}
+
+/// kun: tab stops scaled as the other lengths are.
+fn scale_tab_stops(value: Option<TabStops>, scale: f32) -> Option<TabStops> {
+    value.map(|stops| TabStops {
+        interval: stops.interval * scale,
+        min_advance: stops.min_advance * scale,
+    })
 }
 
 /// Flattened group of style properties.
@@ -448,6 +460,8 @@ pub(crate) struct ResolvedStyle<B: Brush> {
     pub(crate) text_wrap_mode: TextWrapMode,
     /// Whitespace collapsing and hanging behavior.
     pub(crate) white_space_collapse: WhiteSpaceCollapse,
+    /// kun: where a tab reaches.
+    pub(crate) tab_stops: Option<TabStops>,
 }
 
 impl<B: Brush> ResolvedStyle<B> {
@@ -481,6 +495,7 @@ impl<B: Brush> ResolvedStyle<B> {
             OverflowWrap(value) => self.overflow_wrap = value,
             TextWrapMode(value) => self.text_wrap_mode = value,
             WhiteSpaceCollapse(value) => self.white_space_collapse = value,
+            TabStops(value) => self.tab_stops = value,
         }
     }
 
@@ -513,6 +528,7 @@ impl<B: Brush> ResolvedStyle<B> {
             OverflowWrap(value) => self.overflow_wrap == *value,
             TextWrapMode(value) => self.text_wrap_mode == *value,
             WhiteSpaceCollapse(value) => self.white_space_collapse == *value,
+            TabStops(value) => self.tab_stops == *value,
         }
     }
 
@@ -527,6 +543,7 @@ impl<B: Brush> ResolvedStyle<B> {
             overflow_wrap: self.overflow_wrap,
             text_wrap_mode: self.text_wrap_mode,
             white_space_collapse: self.white_space_collapse,
+            tab_stops: self.tab_stops,
             locale: self.locale,
         }
     }

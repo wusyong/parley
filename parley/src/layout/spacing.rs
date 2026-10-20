@@ -118,6 +118,22 @@ impl Spacing {
     }
 }
 
+/// kun: a tab's advance, gaps included, at `position` from the line's start edge: to the next
+/// tab stop, or to the one after it when that is nearer than `stops.min_advance` (CSS Text 3,
+/// `tab-size`; Blink's `Font::TabWidth`). Without tab stops (an interval of 0) the tab has only
+/// its letter spacing.
+pub(crate) fn tab_advance(stops: crate::TabStops, spacing: Spacing, position: f32) -> f32 {
+    let interval = stops.interval;
+    if interval <= 0. {
+        return spacing.letter;
+    }
+    let mut distance = interval - position.rem_euclid(interval);
+    if distance < stops.min_advance {
+        distance += interval;
+    }
+    distance
+}
+
 /// Justification to apply to a single line.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(crate) struct Justification {

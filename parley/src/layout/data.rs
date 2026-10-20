@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 use crate::inline_box::{InlineBox, LayoutInlineBox};
-use crate::layout::spacing::{Justification, Spacing};
+use crate::layout::spacing::{Justification, Spacing, tab_advance};
 use crate::layout::style_metrics::StyleMetrics;
 use crate::layout::whitespace::whitespace_hangs;
 use crate::layout::{ContentWidths, LineMetrics, Style};
@@ -569,8 +569,25 @@ impl ContentWidthsMeasurer {
                     advance += gap;
                 }
             }
-            self.running_min_width += advance;
-            self.running_max_width += advance;
+            // kun: a tab reaches the next tab stop from where it is on each of the two lines:
+            // gaps and all (`tab_advance`).
+            let tab_stops = if whitespace == Whitespace::Tab {
+                style.tab_stops
+            } else {
+                None
+            };
+            let advance = if let Some(stops) = tab_stops {
+                let tab = |position| tab_advance(stops, spacing, position);
+                let min = tab(self.running_min_width);
+                let max = tab(self.running_max_width);
+                self.running_min_width += min;
+                self.running_max_width += max;
+                max
+            } else {
+                self.running_min_width += advance;
+                self.running_max_width += advance;
+                advance
+            };
 
             // A cluster hangs if all of its characters hang. Its first character is checked via the
             // cached flags so the common case never touches `characters`.

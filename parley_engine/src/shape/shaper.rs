@@ -340,6 +340,11 @@ fn shape_segment(
             // with `char_indices`, push each char individually via `.chars` with a cluster index
             // that matches its `infos` counterpart. This allows us to lookup `infos` via cluster
             // index in `data.rs`.
+            //
+            // kun: a tab shapes as a space, so it draws nothing (fonts seldom
+            // map U+0009, and its .notdef box would show); line breaking
+            // gives it its advance to the next tab stop, as Chrome draws it.
+            let ch = if ch == '\t' { ' ' } else { ch };
             buffer.add(ch, i as u32);
         }
 
