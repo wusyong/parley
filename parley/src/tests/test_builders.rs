@@ -241,6 +241,7 @@ fn create_root_style() -> TextStyle<'static, 'static, ColorBrush> {
             interval: 40.,
             min_advance: 3.,
         }),
+        optical_sizing: true,
     }
 }
 
@@ -284,6 +285,7 @@ fn set_root_style(rb: &mut RangedBuilder<'_, ColorBrush>) {
         interval: 40.,
         min_advance: 3.,
     })));
+    rb.push_default(StyleProperty::OpticalSizing(true));
 }
 
 /// Test that all the builders have the same default behavior.

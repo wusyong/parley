@@ -161,6 +161,8 @@ pub(crate) fn shape_text<'a, B: Brush>(
                         || style.locale != item_style.locale
                         || style.font_variations != item_style.font_variations
                         || style.font_features != item_style.font_features
+                        // kun: optical sizing, which shaping adds to the variations.
+                        || style.optical_sizing != item_style.optical_sizing
                         || !nearly_eq(style.letter_spacing, item_style.letter_spacing)
                         || !nearly_eq(style.word_spacing, item_style.word_spacing);
                 }
@@ -180,6 +182,7 @@ pub(crate) fn shape_text<'a, B: Brush>(
                     font_size: item_style.font_size,
                     features: &style_features[item_style_index as usize],
                     variations: rcx.variations(item_style.font_variations).unwrap_or(&[]),
+                    optical_sizing: item_style.optical_sizing,
                 },
             })
         })

@@ -277,6 +277,9 @@ pub enum StyleProperty<'a, B: Brush> {
     WhiteSpaceCollapse(WhiteSpaceCollapse),
     /// kun: where a tab reaches (CSS `tab-size`); `None` leaves it its shaped advance.
     TabStops(Option<TabStops>),
+    /// kun: CSS `font-optical-sizing: auto`: a font with an `opsz` axis is shaped and drawn
+    /// at the font size on it, unless the font variations set it.
+    OpticalSizing(bool),
 }
 
 /// kun: tab stops for CSS `tab-size`, in layout units before the display scale, worked out by
@@ -353,6 +356,8 @@ pub struct TextStyle<'family, 'settings, B: Brush> {
     pub white_space_collapse: WhiteSpaceCollapse,
     /// kun: where a tab reaches (CSS `tab-size`); `None` leaves it its shaped advance.
     pub tab_stops: Option<TabStops>,
+    /// kun: CSS `font-optical-sizing: auto` (off by default, as upstream has it).
+    pub optical_sizing: bool,
 }
 
 impl<B: Brush> Default for TextStyle<'static, 'static, B> {
@@ -385,6 +390,7 @@ impl<B: Brush> Default for TextStyle<'static, 'static, B> {
             text_wrap_mode: TextWrapMode::default(),
             white_space_collapse: WhiteSpaceCollapse::default(),
             tab_stops: None,
+            optical_sizing: false,
         }
     }
 }

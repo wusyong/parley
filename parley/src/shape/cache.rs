@@ -48,6 +48,7 @@ struct RunStyle {
     locale: Option<parlance::Language>,
     letter_spacing: u32,
     word_spacing: u32,
+    optical_sizing: bool,
 }
 
 impl RunStyle {
@@ -66,6 +67,7 @@ impl RunStyle {
             locale: style.locale,
             letter_spacing: style.letter_spacing.to_bits(),
             word_spacing: style.word_spacing.to_bits(),
+            optical_sizing: style.optical_sizing,
         }
     }
 }

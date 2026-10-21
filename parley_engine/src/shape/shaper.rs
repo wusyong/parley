@@ -34,6 +34,9 @@ pub struct ShapeOptions<'a> {
     pub features: &'a [FontFeature],
     /// The font variations that are constant over an item.
     pub variations: &'a [FontVariation],
+    /// kun: CSS `font-optical-sizing: auto`: the `opsz` axis at the font size, unless the
+    /// variations set it (a font without the axis ignores it).
+    pub optical_sizing: bool,
 }
 
 /// The font instance to shape an item with.
@@ -90,6 +93,8 @@ pub struct Shaper {
     shape_plan_cache: LruCache<cache::ShapePlanId, harfrust::ShapePlan>,
     unicode_buffer: Option<harfrust::UnicodeBuffer>,
     features: Vec<harfrust::Feature>,
+    /// kun: the item's variations, with `opsz` for optical sizing.
+    variations: Vec<FontVariation>,
     char_cluster: CharCluster,
 }
 
@@ -102,6 +107,7 @@ impl Default for Shaper {
             shape_plan_cache: LruCache::new(MAX_ENTRIES),
             unicode_buffer: Some(harfrust::UnicodeBuffer::new()),
             features: Vec::new(),
+            variations: Vec::new(),
             char_cluster: CharCluster::default(),
         }
     }
@@ -270,6 +276,16 @@ fn shape_segment(
             ..,
         )
     }));
+    // kun: optical sizing sets the `opsz` axis to the font size (CSS Fonts 4), first so that
+    // the variations' own would win; a font without the axis ignores it.
+    const OPSZ: parlance::Tag = parlance::Tag::new(b"opsz");
+    scx.variations.clear();
+    if options.optical_sizing && !options.variations.iter().any(|v| v.tag == OPSZ) {
+        scx.variations
+            .push(FontVariation::new(OPSZ, options.font_size));
+    }
+    scx.variations.extend_from_slice(options.variations);
+    let variations = &scx.variations;
 
     // Shape a run of the segment with a single font, appending it to `shaped_text`.
     let mut shape_run = |font: &FontInstance, range: TextRange| {
@@ -287,12 +303,12 @@ fn shape_segment(
                 font.font.data.id(),
                 font.font.index,
                 &font.synthesis,
-                Some(options.variations),
+                Some(variations),
             ),
             || {
                 harfrust::ShaperInstance::from_variations(
                     &font_ref,
-                    variations_iter(&font.synthesis, options.variations),
+                    variations_iter(&font.synthesis, variations),
                 )
             },
         );
@@ -310,7 +326,7 @@ fn shape_segment(
                 hb_script,
                 language.clone(),
                 &scx.features,
-                Some(options.variations),
+                Some(variations),
             ),
             || {
                 harfrust::ShapePlan::new(
