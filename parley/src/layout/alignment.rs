@@ -72,6 +72,8 @@ pub(crate) fn align<B: Brush>(
             // the line to the left. Note: indent is not subtracted here because `free_space` below
             // already accounts for it.
             line.metrics.offset = -line.metrics.hanging_advance;
+            // kun: a hyphen at the line's end goes on the left of its items.
+            line.metrics.offset += line.metrics.hyphen_advance;
         } else {
             line.metrics.offset = indent;
         }

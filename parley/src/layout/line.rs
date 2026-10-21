@@ -180,6 +180,12 @@ pub struct LineMetrics {
     // into two fields.
     pub hanging_advance: f32,
 
+    /// kun: the portion of [`Self::advance`] that is a hyphen at the line's logical end, which
+    /// the embedder draws: the line broke after a soft hyphen whose style has
+    /// [`SoftHyphens::Hyphen`](crate::SoftHyphens::Hyphen). In RTL paragraphs, the line's items
+    /// leave room for it on the left of [`Self::offset`].
+    pub hyphen_advance: f32,
+
     /// The minimum inline-axis coordinate of the line.
     ///
     /// For horizontal text, this would be the left of the line.

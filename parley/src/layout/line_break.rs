@@ -23,7 +23,7 @@ use crate::layout::{
 use crate::style::Brush;
 use crate::{
     BaselineShift, InlineBox, InlineBoxKind, InlineBoxLineBreak, LineHeight, OverflowWrap,
-    TextWrapMode, VerticalAlign, WhiteSpaceCollapse,
+    SoftHyphens, TextWrapMode, VerticalAlign, WhiteSpaceCollapse,
 };
 
 use core::ops::Range;
@@ -89,6 +89,15 @@ struct LineState {
     /// not marked again. Saved and restored with the line-breaking opportunities, like the rest of
     /// the line state.
     glue_next: bool,
+
+    /// kun: how the line may break at the next opportunity: the last atom's style's
+    /// [`SoftHyphens`] if it is a soft hyphen (atomic inlines aside, an inline's edges keep it),
+    /// otherwise `Break`.
+    soft_hyphen: SoftHyphens,
+
+    /// kun: the advance of the hyphen the line ends with when it is broken here: set on the
+    /// state saved at an opportunity after a soft hyphen.
+    hyphen_advance: f32,
 }
 
 impl LineState {
@@ -98,6 +107,8 @@ impl LineState {
         self.box_metrics.reset();
         self.num_word_separators = 0;
         self.glue_next = false;
+        self.soft_hyphen = SoftHyphens::Break;
+        self.hyphen_advance = 0.0;
     }
 }
 
@@ -621,6 +632,24 @@ impl BreakerState {
         });
     }
 
+    /// kun: [`Self::mark_line_break_opportunity`] after a soft hyphen as its style has it
+    /// ([`LineState::soft_hyphen`]): with a hyphen at the line's end, unless the hyphen doesn't fit
+    /// and the line has an opportunity before; or not at all.
+    fn mark_line_break_opportunity_after_soft_hyphen(&mut self, max_advance: f32) {
+        match self.line.soft_hyphen {
+            SoftHyphens::Break => self.mark_line_break_opportunity(),
+            SoftHyphens::NoBreak => {}
+            SoftHyphens::Hyphen(advance) => {
+                if self.line.x + advance <= max_advance || self.prev_boundary.is_none() {
+                    self.mark_line_break_opportunity();
+                    if let Some(prev) = &mut self.prev_boundary {
+                        prev.state.hyphen_advance = advance;
+                    }
+                }
+            }
+        }
+    }
+
     /// Store the current iteration state so that we can revert to it if we later want to take
     /// an *emergency* line breaking opportunity at this point.
     fn mark_emergency_break_opportunity(&mut self) {
@@ -995,6 +1024,8 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                         let parent = self.layout.data.inline_boxes[item.index].parent_style_index;
                         self.state.line.text_wrap_mode =
                             self.layout.data.styles[usize::from(parent)].text_wrap_mode;
+                        // kun: the opportunities beside an atomic inline are its own.
+                        self.state.line.soft_hyphen = SoftHyphens::Break;
                     }
                     let wraps = self.state.line.text_wrap_mode == TextWrapMode::Wrap;
 
@@ -1009,7 +1040,8 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                             .soft_wrap_opportunity_after_box(self.state.item_idx)
                     {
                         if wraps && self.state.line.x != 0.0 {
-                            self.state.mark_line_break_opportunity();
+                            self.state
+                                .mark_line_break_opportunity_after_soft_hyphen(max_advance);
                         }
                         self.state.line.glue_next = true;
                     }
@@ -1112,6 +1144,12 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                         let max_height_exceeded = self.state.line.max_height_exceeded;
                         let style_index = first_character.style_index;
                         let style = &self.layout.data.styles[style_index as usize];
+                        // kun: how the line may break after this atom.
+                        let soft_hyphen = if first_character.flags.is_soft_hyphen() {
+                            style.soft_hyphens
+                        } else {
+                            SoftHyphens::Break
+                        };
 
                         // Lag text_wrap_mode style by one atom
                         let text_wrap_mode = self.state.line.text_wrap_mode;
@@ -1137,11 +1175,16 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                                 max_advance,
                                 line_indent,
                             );
-                        } else if is_soft_wrap_opportunity && text_wrap_mode == TextWrapMode::Wrap {
+                        } else if is_soft_wrap_opportunity
+                            && text_wrap_mode == TextWrapMode::Wrap
+                            // kun: after a soft hyphen that has none, an emergency one at most.
+                            && self.state.line.soft_hyphen != SoftHyphens::NoBreak
+                        {
                             // We don't record boundaries when the advance is 0. As we do not want overflowing content to cause extra consecutive
                             // line breaks. We should accept the overflowing fragment in that scenario.
                             if self.state.line.x != 0.0 && !glued {
-                                self.state.mark_line_break_opportunity();
+                                self.state
+                                    .mark_line_break_opportunity_after_soft_hyphen(max_advance);
                                 // break_opportunity = true;
                             }
                         } else if
@@ -1252,6 +1295,8 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                                 );
                             }
                         }
+                        // kun: every way here appended the atom.
+                        self.state.line.soft_hyphen = soft_hyphen;
                     }
                     if let Some((cluster, advance)) = retab {
                         self.layout
@@ -1816,8 +1861,9 @@ fn commit_line<B: Brush>(
         },
         indent: line_indent,
         metrics: LineMetrics {
-            advance: state.x,
+            advance: state.x + state.hyphen_advance,
             hanging_advance,
+            hyphen_advance: state.hyphen_advance,
             ..Default::default()
         },
         aligned_subtree_offsets: 0..0,

@@ -280,6 +280,8 @@ pub enum StyleProperty<'a, B: Brush> {
     /// kun: CSS `font-optical-sizing: auto`: a font with an `opsz` axis is shaped and drawn
     /// at the font size on it, unless the font variations set it.
     OpticalSizing(bool),
+    /// kun: how a line may break after a soft hyphen (CSS `hyphens`).
+    SoftHyphens(SoftHyphens),
 }
 
 /// kun: tab stops for CSS `tab-size`, in layout units before the display scale, worked out by
@@ -291,6 +293,27 @@ pub struct TabStops {
     pub interval: f32,
     /// The least a tab advances: nearer than this, it goes on to the stop after.
     pub min_advance: f32,
+}
+
+/// kun: how a line may break after a soft hyphen (U+00AD), for CSS `hyphens`, which the
+/// embedder works out with the hyphen's advance (it draws the hyphen).
+#[derive(Copy, Clone, PartialEq, Debug, Default)]
+pub enum SoftHyphens {
+    /// A soft wrap opportunity like any other, with nothing drawn: upstream's behaviour.
+    #[default]
+    Break,
+    /// No opportunity (`hyphens: none`).
+    NoBreak,
+    /// An opportunity with a hyphen of this advance (in layout units before the display scale)
+    /// at the line's end, taken only where the hyphen fits, unless the line has no other
+    /// (`hyphens: manual` and `auto`).
+    Hyphen(f32),
+}
+
+impl<B: Brush> From<SoftHyphens> for StyleProperty<'_, B> {
+    fn from(value: SoftHyphens) -> Self {
+        StyleProperty::SoftHyphens(value)
+    }
 }
 
 impl<B: Brush> From<Option<TabStops>> for StyleProperty<'_, B> {
@@ -358,6 +381,8 @@ pub struct TextStyle<'family, 'settings, B: Brush> {
     pub tab_stops: Option<TabStops>,
     /// kun: CSS `font-optical-sizing: auto` (off by default, as upstream has it).
     pub optical_sizing: bool,
+    /// kun: how a line may break after a soft hyphen (CSS `hyphens`).
+    pub soft_hyphens: SoftHyphens,
 }
 
 impl<B: Brush> Default for TextStyle<'static, 'static, B> {
@@ -391,6 +416,7 @@ impl<B: Brush> Default for TextStyle<'static, 'static, B> {
             white_space_collapse: WhiteSpaceCollapse::default(),
             tab_stops: None,
             optical_sizing: false,
+            soft_hyphens: SoftHyphens::Break,
         }
     }
 }
