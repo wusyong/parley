@@ -10,6 +10,7 @@
 //! character takes the new layout's style.
 
 use alloc::boxed::Box;
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::hash::{BuildHasher, Hash, Hasher};
 
@@ -81,7 +82,7 @@ struct Entry {
     char_info: Vec<CharInfo>,
     bidi_levels: Vec<BidiLevel>,
     paragraph_level: BidiLevel,
-    shaped: ShapedText,
+    shaped: Arc<ShapedText>,
 }
 
 /// What a layout is shaped with, as `shape_text` has it.
@@ -152,7 +153,7 @@ impl ShapeCache {
     }
 
     /// The shaping kept for `key`, if any.
-    pub(crate) fn get(&self, key: &Key<'_>) -> Option<&ShapedText> {
+    pub(crate) fn get(&self, key: &Key<'_>) -> Option<&Arc<ShapedText>> {
         self.entries
             .get(&key.hash)?
             .iter()
@@ -161,7 +162,7 @@ impl ShapeCache {
     }
 
     /// Keeps `shaped`, what shaping `key` gave.
-    pub(crate) fn insert(&mut self, key: Key<'_>, shaped: &ShapedText) {
+    pub(crate) fn insert(&mut self, key: Key<'_>, shaped: Arc<ShapedText>) {
         let characters = key.analysis.char_info().len();
         if self.characters + characters > CHARACTERS {
             self.entries.clear();
@@ -175,7 +176,7 @@ impl ShapeCache {
             char_info: key.analysis.char_info().to_vec(),
             bidi_levels: key.analysis.bidi_levels().to_vec(),
             paragraph_level: key.analysis.paragraph_level(),
-            shaped: shaped.clone(),
+            shaped,
         });
     }
 }

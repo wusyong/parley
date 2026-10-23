@@ -3,6 +3,7 @@
 
 //! Greedy line breaking.
 
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 
 #[cfg(feature = "libm")]
@@ -1299,9 +1300,9 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                         self.state.line.soft_hyphen = soft_hyphen;
                     }
                     if let Some((cluster, advance)) = retab {
-                        self.layout
-                            .data
-                            .shaped_text
+                        // A copy, if it is held elsewhere: what was laid
+                        // out of it stays as it was.
+                        Arc::make_mut(&mut self.layout.data.shaped_text)
                             .set_cluster_advance(cluster, advance);
                         continue;
                     }

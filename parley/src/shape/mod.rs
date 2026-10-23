@@ -8,6 +8,7 @@
 mod cache;
 pub(crate) use cache::ShapeCache;
 
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use parley_engine::shape::{CharCluster, Coverage};
 use parley_engine::{
@@ -201,11 +202,19 @@ pub(crate) fn shape_text<'a, B: Brush>(
         cache.hasher(),
     );
     if let Some(shaped) = cache.get(&key) {
-        layout.data.shaped_text.clone_from(shaped);
-        layout
+        // The same shaping, shared, unless its characters were styled
+        // otherwise.
+        layout.data.shaped_text = Arc::clone(shaped);
+        let styled_alike = layout
             .data
             .shaped_text
-            .set_style_indices(char_style_indices);
+            .characters()
+            .iter()
+            .map(|character| character.style_index)
+            .eq(char_style_indices.iter().copied());
+        if !styled_alike {
+            Arc::make_mut(&mut layout.data.shaped_text).set_style_indices(char_style_indices);
+        }
         cache.reused += 1;
         // What shaping it again gives.
         #[cfg(debug_assertions)]
@@ -234,9 +243,9 @@ pub(crate) fn shape_text<'a, B: Brush>(
             char_style_indices,
             items,
             font_selector,
-            &mut layout.data.shaped_text,
+            Arc::make_mut(&mut layout.data.shaped_text),
         );
-        cache.insert(key, &layout.data.shaped_text);
+        cache.insert(key, Arc::clone(&layout.data.shaped_text));
     }
 
     let mut inline_box_iter = inline_boxes

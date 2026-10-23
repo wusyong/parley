@@ -5,13 +5,13 @@ use crate::layout::Style;
 use crate::layout::data::BreakReason;
 use crate::layout::data::{LayoutItemKind, LineData};
 use crate::layout::layout::Layout;
-use crate::layout::run::Run;
+use crate::layout::run::{Glyphs, Run};
 use crate::layout::spacing::EffectiveSpacing;
 use crate::style::Brush;
 use crate::{BaselineShift, InlineBox, InlineBoxKind};
 
 use core::ops::Range;
-use parley_engine::{Atom, Atoms, Glyph};
+use parley_engine::{Atom, Atoms, Glyph, ShapedText};
 
 /// Line in a text layout.
 #[derive(Copy, Clone)]
@@ -331,6 +331,19 @@ impl<'a, B: Brush> GlyphRun<'a, B> {
         self.run.glyphs_in(self.shaped_clusters.clone())
     }
 
+    /// kun: where the run's glyphs are in its layout's shaped text, and the
+    /// spacing they take on its line: [`GlyphSpan::glyphs`] with the
+    /// layout's [`shaped_text`](crate::Layout::shaped_text) is what
+    /// [`Self::glyphs`] gives.
+    pub fn span(&self) -> GlyphSpan {
+        GlyphSpan {
+            run: self.run.shaped_text_run_index,
+            shaped_clusters: self.shaped_clusters.clone(),
+            is_rtl: self.run.is_rtl(),
+            spacing: self.run.line_spacing(),
+        }
+    }
+
     /// Returns an iterator over the fully positioned glyphs in the run.
     pub fn positioned_glyphs(&'a self) -> impl Iterator<Item = Glyph> + 'a + Clone {
         let mut offset = self.offset;
@@ -341,6 +354,39 @@ impl<'a, B: Brush> GlyphRun<'a, B> {
             offset += g.advance;
             g
         })
+    }
+}
+
+/// kun: a glyph run's glyphs without the layout: where they are in its
+/// shaped text, and the spacing they take on their line ([`GlyphRun::span`]).
+/// A layout's shaped text is shared ([`Layout::shaped_text`]), so what is kept
+/// of a layout can walk its glyphs once the layout has moved on (Blink's
+/// `ShapeResultView`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct GlyphSpan {
+    /// The shaped run.
+    run: u32,
+    /// Its shaped clusters, atom boundaries both.
+    shaped_clusters: Range<u32>,
+    is_rtl: bool,
+    spacing: EffectiveSpacing,
+}
+
+impl GlyphSpan {
+    /// The glyphs in visual left-to-right order, with their spacing, as
+    /// [`GlyphRun::glyphs`]: `shaped_text` is the one of the layout the span
+    /// is from.
+    pub fn glyphs<'a>(
+        &self,
+        shaped_text: &'a ShapedText,
+    ) -> impl Iterator<Item = Glyph> + 'a + Clone {
+        Glyphs::new(
+            shaped_text
+                .run_slice(self.run)
+                .narrow(self.shaped_clusters.clone()),
+            self.is_rtl,
+            self.spacing,
+        )
     }
 }
 

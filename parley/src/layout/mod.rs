@@ -27,10 +27,12 @@ pub use alignment::{Alignment, AlignmentOptions};
 pub use cluster::{Affinity, Cluster, ClusterPath, ClusterSide};
 pub use data::BreakReason;
 pub use layout::Layout;
-pub use line::{GlyphRun, Line, LineMetrics, PositionedInlineBox, PositionedLayoutItem};
+pub use line::{GlyphRun, GlyphSpan, Line, LineMetrics, PositionedInlineBox, PositionedLayoutItem};
+// kun: what `Layout::shaped_text` shares.
 pub use line_break::{
     BoxBreakData, BreakLines, BreakerState, LineBreakData, MaxHeightBreakData, YieldData,
 };
+pub use parley_engine::ShapedText;
 pub use run::Run;
 
 pub(crate) use data::{LayoutData, LayoutItem, LayoutItemKind, LineData, LineItemData};

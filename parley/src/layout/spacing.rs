@@ -162,7 +162,8 @@ impl Default for Justification {
 }
 
 /// Additional spacing to apply, including justification (if any).
-#[derive(Copy, Clone, Debug)]
+// kun: `PartialEq` for `GlyphSpan`.
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub(crate) struct EffectiveSpacing {
     spacing: Spacing,
     justification: Justification,

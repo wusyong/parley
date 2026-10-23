@@ -5,8 +5,10 @@ use crate::InlineBox;
 use crate::layout::alignment::align;
 use crate::layout::data::LayoutData;
 use crate::style::Brush;
+use alloc::sync::Arc;
 use core::cmp::Ordering;
 use core::fmt;
+use parley_engine::ShapedText;
 
 use crate::IndentOptions;
 use crate::layout::{
@@ -59,6 +61,15 @@ impl<B: Brush> Layout<B> {
     /// Returns the scale factor provided when creating the layout.
     pub fn scale(&self) -> f32 {
         self.data.scale
+    }
+
+    /// kun: the layout's shaped text, shared: what is kept of it (a
+    /// [`GlyphSpan`]'s glyphs) outlives the layout, and breaking its lines
+    /// again leaves it as it is.
+    ///
+    /// [`GlyphSpan`]: crate::GlyphSpan
+    pub fn shaped_text(&self) -> &Arc<ShapedText> {
+        &self.data.shaped_text
     }
 
     /// Returns the style collection for the layout.

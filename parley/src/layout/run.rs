@@ -281,7 +281,7 @@ pub(crate) struct Glyphs<'a> {
 }
 
 impl<'a> Glyphs<'a> {
-    fn new(slice: ShapedSlice<'a>, is_rtl: bool, spacing: EffectiveSpacing) -> Self {
+    pub(crate) fn new(slice: ShapedSlice<'a>, is_rtl: bool, spacing: EffectiveSpacing) -> Self {
         let clusters = slice.shaped_clusters_range();
         Self {
             slice,
