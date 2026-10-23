@@ -10,8 +10,8 @@ use crate::style::Brush;
 use core::ops::Range;
 use fontique::Synthesis;
 use parley_engine::{
-    Atom, Atoms, FontInstance, FontMetrics, Glyph, Graphemes, NormalizedCoord, ShapedClusterGlyphs,
-    ShapedRun, ShapedSlice,
+    Atom, Atoms, FontInstance, FontMetrics, Glyph, Grapheme, Graphemes, NormalizedCoord,
+    ShapedClusterGlyphs, ShapedRun, ShapedSlice,
 };
 
 /// Sequence of clusters with a single font and style.
@@ -361,9 +361,51 @@ impl Iterator for Glyphs<'_> {
 /// This walks the run's graphemes. Each grapheme is one [`Cluster`].
 struct Clusters<'a, B: Brush> {
     run: Run<'a, B>,
-    /// Cursor over the run's (line-scoped) atoms.
+    /// The run's (line-scoped) graphemes, each with its atom.
+    graphemes: AtomGraphemes<'a>,
+}
+
+impl<'a, B: Brush> Clusters<'a, B> {
+    fn new(run: Run<'a, B>, rev: bool) -> Self {
+        Self {
+            run,
+            graphemes: AtomGraphemes::new(run.line_slice(), rev),
+        }
+    }
+}
+
+impl<B: Brush> Clone for Clusters<'_, B> {
+    fn clone(&self) -> Self {
+        Self {
+            run: self.run,
+            graphemes: self.graphemes,
+        }
+    }
+}
+
+impl<'a, B: Brush> Iterator for Clusters<'a, B> {
+    type Item = Cluster<'a, B>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (atom, grapheme) = self.graphemes.next()?;
+        Some(Cluster {
+            run: self.run,
+            atom,
+            grapheme,
+        })
+    }
+}
+
+/// kun: a slice's graphemes, each with the atom it is in, in logical order
+/// or its reverse: what [`Clusters`] walks, and [`GlyphSpan::clusters`]
+/// without the layout.
+///
+/// [`GlyphSpan::clusters`]: crate::GlyphSpan::clusters
+#[derive(Clone, Copy)]
+pub(crate) struct AtomGraphemes<'a> {
+    /// Cursor over the slice's atoms.
     atoms: Atoms<'a>,
-    /// Grapheme cursor over the run's (line-scoped) slice.
+    /// Grapheme cursor over the slice.
     graphemes: Graphemes<'a>,
     /// The atom containing the most recently yielded grapheme; `None` before the first grapheme.
     atom: Option<Atom<'a>>,
@@ -371,11 +413,9 @@ struct Clusters<'a, B: Brush> {
     rev: bool,
 }
 
-impl<'a, B: Brush> Clusters<'a, B> {
-    fn new(run: Run<'a, B>, rev: bool) -> Self {
-        let slice = run.line_slice();
+impl<'a> AtomGraphemes<'a> {
+    pub(crate) fn new(slice: ShapedSlice<'a>, rev: bool) -> Self {
         Self {
-            run,
             atoms: if rev {
                 slice.atoms_end()
             } else {
@@ -392,20 +432,8 @@ impl<'a, B: Brush> Clusters<'a, B> {
     }
 }
 
-impl<B: Brush> Clone for Clusters<'_, B> {
-    fn clone(&self) -> Self {
-        Self {
-            run: self.run,
-            atoms: self.atoms,
-            graphemes: self.graphemes,
-            atom: self.atom,
-            rev: self.rev,
-        }
-    }
-}
-
-impl<'a, B: Brush> Iterator for Clusters<'a, B> {
-    type Item = Cluster<'a, B>;
+impl<'a> Iterator for AtomGraphemes<'a> {
+    type Item = (Atom<'a>, Grapheme);
 
     fn next(&mut self) -> Option<Self::Item> {
         let grapheme = if self.rev {
@@ -428,11 +456,7 @@ impl<'a, B: Brush> Iterator for Clusters<'a, B> {
         let atom = self.atom.expect(
             "The first call to `next` should always be an atom edge, so this should always be set at this point.",
         );
-        Some(Cluster {
-            run: self.run,
-            atom,
-            grapheme,
-        })
+        Some((atom, grapheme))
     }
 }
 

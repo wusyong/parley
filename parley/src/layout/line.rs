@@ -5,13 +5,13 @@ use crate::layout::Style;
 use crate::layout::data::BreakReason;
 use crate::layout::data::{LayoutItemKind, LineData};
 use crate::layout::layout::Layout;
-use crate::layout::run::{Glyphs, Run};
+use crate::layout::run::{AtomGraphemes, Glyphs, Run};
 use crate::layout::spacing::EffectiveSpacing;
 use crate::style::Brush;
 use crate::{BaselineShift, InlineBox, InlineBoxKind};
 
 use core::ops::Range;
-use parley_engine::{Atom, Atoms, Glyph, ShapedText};
+use parley_engine::{Atom, Atoms, Glyph, ShapedSlice, ShapedText};
 
 /// Line in a text layout.
 #[derive(Copy, Clone)]
@@ -339,6 +339,8 @@ impl<'a, B: Brush> GlyphRun<'a, B> {
         GlyphSpan {
             run: self.run.shaped_text_run_index,
             shaped_clusters: self.shaped_clusters.clone(),
+            line_clusters: self.run.line_slice().shaped_clusters_range(),
+            style_index: self.style_index,
             is_rtl: self.run.is_rtl(),
             spacing: self.run.line_spacing(),
         }
@@ -368,8 +370,23 @@ pub struct GlyphSpan {
     run: u32,
     /// Its shaped clusters, atom boundaries both.
     shaped_clusters: Range<u32>,
+    /// The run's shaped clusters on the line, and the glyph run's style:
+    /// its clusters are the ones of that style there, glyphs or not, as
+    /// [`Run::visual_clusters`] gives them.
+    line_clusters: Range<u32>,
+    style_index: u16,
     is_rtl: bool,
     spacing: EffectiveSpacing,
+}
+
+/// kun: a cluster of a [`GlyphSpan`] ([`GlyphSpan::clusters`]): its text
+/// and advance, as its [`Cluster`](crate::Cluster) has them.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SpanCluster {
+    /// The source text's bytes it is.
+    pub text_range: Range<usize>,
+    /// Its advance with its spacing.
+    pub advance: f32,
 }
 
 impl GlyphSpan {
@@ -387,6 +404,63 @@ impl GlyphSpan {
             self.is_rtl,
             self.spacing,
         )
+    }
+
+    /// The run's clusters of the span's style on its line, glyphs or not, in
+    /// visual left-to-right order: [`Run::visual_clusters`] with that style.
+    pub fn clusters<'a>(
+        &self,
+        shaped_text: &'a ShapedText,
+    ) -> impl Iterator<Item = SpanCluster> + 'a + Clone {
+        let slice = self.line_slice(shaped_text);
+        let (style_index, is_rtl, spacing) = (self.style_index, self.is_rtl, self.spacing);
+        AtomGraphemes::new(slice, is_rtl).filter_map(move |(atom, grapheme)| {
+            let chars = grapheme.char_range();
+            (slice.characters_in(chars.clone())[0].style_index == style_index).then(|| {
+                SpanCluster {
+                    text_range: slice.text_byte_range(chars),
+                    advance: spacing.grapheme_advance(&atom, grapheme, is_rtl),
+                }
+            })
+        })
+    }
+
+    /// Where [`Self::clusters`]' text is, without walking them: the first
+    /// one's start and the furthest end (bytes). Only the characters are
+    /// looked at. `None` without any.
+    pub fn text_range(&self, shaped_text: &ShapedText) -> Option<(usize, usize)> {
+        let slice = self.line_slice(shaped_text);
+        let chars = slice.char_range();
+        // The graphemes of the style, logically first and last: a grapheme
+        // starts at the slice's start or at a grapheme start, and takes its
+        // first character's style.
+        let mut first = None;
+        let mut last = None;
+        let mut current = None;
+        for (index, character) in (chars.start..).zip(slice.characters()) {
+            if index == chars.start || character.grapheme_start {
+                if let Some(start) = current.take() {
+                    last = Some(start..index);
+                }
+                if character.style_index == self.style_index {
+                    first.get_or_insert(index);
+                    current = Some(index);
+                }
+            }
+        }
+        if let Some(start) = current {
+            last = Some(start..chars.end);
+        }
+        let last = last?;
+        let first = if self.is_rtl { last.start } else { first? };
+        Some((slice.text_byte_at(first), slice.text_byte_range(last).end))
+    }
+
+    /// The run's slice on the line.
+    fn line_slice<'a>(&self, shaped_text: &'a ShapedText) -> ShapedSlice<'a> {
+        shaped_text
+            .run_slice(self.run)
+            .narrow(self.line_clusters.clone())
     }
 }
 
