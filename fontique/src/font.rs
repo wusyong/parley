@@ -221,6 +221,13 @@ impl FontInfo {
         // It's probably not useful to retain fonts that don't have
         // a valid cmap so just bail here if we fail.
         let charmap_index = CharmapIndex::new(font)?;
+        // kun: nor fonts without an em to scale their glyphs by: an Apple
+        // bitmap font has `bhed` for `head` (macOS's GB18030 Bitmap), and
+        // its em of 0 units would put its glyphs at NaN. Text falls back
+        // as if it weren't there (OTS rejects such a web font too).
+        if font.head().map_or(true, |head| head.units_per_em() == 0) {
+            return None;
+        }
         let (width, style, weight) = read_attributes(font);
         let (axes, attr_axes) = if let Ok(fvar_axes) = font.fvar().and_then(|fvar| fvar.axes()) {
             let mut axes = SmallVec::<[AxisInfo; 1]>::with_capacity(fvar_axes.len());
