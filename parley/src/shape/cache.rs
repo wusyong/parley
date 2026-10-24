@@ -17,7 +17,7 @@ use core::hash::{BuildHasher, Hash, Hasher};
 use fontique::{FamilyId, FontStyle, FontWeight, FontWidth};
 use hashbrown::HashMap;
 use parlance::BidiLevel;
-use parley_engine::{Analysis, CharInfo, ShapedText};
+use parley_engine::{Analysis, CharInfo, ShapedText, Shaper};
 
 use super::super::resolve::{ResolveContext, ResolvedStyle};
 use super::super::style::{Brush, FontFeature, FontVariation};
@@ -27,6 +27,9 @@ use crate::inline_box::LayoutInlineBox;
 /// again.
 const CHARACTERS: usize = 1 << 18;
 
+/// How many alike font styles get ids before the ids start again.
+const FONT_STYLES: usize = 1 << 12;
+
 /// Shaped texts by what they were shaped with.
 #[derive(Default)]
 pub(crate) struct ShapeCache {
@@ -34,6 +37,18 @@ pub(crate) struct ShapeCache {
     characters: usize,
     /// How many layouts took a kept shaping (for tests).
     pub(crate) reused: usize,
+    /// An id for each font style, which the shaper keeps words by.
+    font_styles: HashMap<FontStyleKey, u32>,
+}
+
+/// What font selection takes from a style: its families, width, weight and
+/// style.
+#[derive(PartialEq, Eq, Hash)]
+struct FontStyleKey {
+    families: Vec<FamilyId>,
+    width: u32,
+    weight: u32,
+    style: (u8, u32),
 }
 
 /// What shaping a text depends on but the text.
@@ -147,6 +162,49 @@ impl Entry {
 }
 
 impl ShapeCache {
+    /// An id for what font selection takes from each of `styles`, the same
+    /// for alike styles of every layout until `scx` forgets the words it
+    /// shaped: it does when the ids start again.
+    pub(crate) fn font_styles<B: Brush>(
+        &mut self,
+        rcx: &ResolveContext,
+        styles: &[ResolvedStyle<B>],
+        scx: &mut Shaper,
+    ) -> Vec<u32> {
+        if self.font_styles.len() + styles.len() > FONT_STYLES {
+            self.font_styles.clear();
+            scx.clear_words();
+        }
+        styles
+            .iter()
+            .map(|style| {
+                let key = FontStyleKey {
+                    families: rcx.stack(style.font_family).unwrap_or(&[]).to_vec(),
+                    width: style.font_width.ratio().to_bits(),
+                    weight: style.font_weight.value().to_bits(),
+                    style: match style.font_style {
+                        FontStyle::Normal => (0, 0),
+                        FontStyle::Italic => (1, 0),
+                        FontStyle::Oblique(None) => (2, 0),
+                        FontStyle::Oblique(Some(angle)) => (3, angle.to_bits()),
+                    },
+                };
+                let next = u32::try_from(self.font_styles.len())
+                    .expect("font styles are fewer than FONT_STYLES");
+                *self.font_styles.entry(key).or_insert(next)
+            })
+            .collect()
+    }
+
+    /// Forgets every shaping, and the font styles' ids, with the words
+    /// `scx` shaped: fonts were added, so font selection may pick others.
+    pub(crate) fn clear(&mut self, scx: &mut Shaper) {
+        self.entries.clear();
+        self.characters = 0;
+        self.font_styles.clear();
+        scx.clear_words();
+    }
+
     /// The hasher keys are made with.
     pub(crate) fn hasher(&self) -> &impl BuildHasher {
         self.entries.hasher()

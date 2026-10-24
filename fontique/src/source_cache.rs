@@ -42,6 +42,12 @@ pub struct SourceCache {
     serial: u64,
     #[cfg(feature = "std")]
     shared: Option<Arc<Mutex<Shared>>>,
+    /// kun: the blobs pruned, while something else still holds them: loading
+    /// one again takes the same blob, so the same font has one id (a
+    /// shaping kept elsewhere holds its font, and one font in two copies
+    /// is two fonts to whoever compares them by id) and one copy in memory.
+    #[cfg(feature = "std")]
+    pruned: HashMap<SourceId, WeakBlob<u8>>,
 }
 
 impl SourceCache {
@@ -56,6 +62,7 @@ impl SourceCache {
                 cache: HashMap::default(),
                 serial: 0,
                 shared: Some(Arc::new(Mutex::new(Shared::default()))),
+                pruned: HashMap::default(),
             };
         }
         Self::default()
@@ -74,6 +81,7 @@ impl SourceCache {
             cache: HashMap::default(),
             serial: 0,
             shared: Some(Arc::new(Mutex::new(Shared::default()))),
+            pruned: HashMap::default(),
         }
     }
 
@@ -100,6 +108,18 @@ impl SourceCache {
                 use hashbrown::hash_map::Entry as HashEntry;
                 match self.cache.entry(source.id()) {
                     HashEntry::Vacant(vacant) => {
+                        // kun: a blob pruned that is still held.
+                        if let Some(blob) = self
+                            .pruned
+                            .remove(&source.id())
+                            .and_then(|weak| weak.upgrade())
+                        {
+                            vacant.insert(Entry::Loaded(EntryData {
+                                font_data: blob.clone(),
+                                serial: self.serial,
+                            }));
+                            return Some(blob);
+                        }
                         if let Some(mut shared) =
                             self.shared.as_ref().and_then(|shared| shared.lock().ok())
                         {
@@ -150,9 +170,17 @@ impl SourceCache {
     pub fn prune(&mut self, max_age: u64, prune_failed: bool) {
         #[cfg(feature = "std")]
         {
-            self.cache.retain(|_, entry| match entry {
+            // kun: what is pruned is kept weakly; what no one holds is let go.
+            self.pruned.retain(|_, weak| weak.upgrade().is_some());
+            self.cache.retain(|id, entry| match entry {
                 Entry::Failed => !prune_failed,
-                Entry::Loaded(data) => self.serial.saturating_sub(data.serial) < max_age,
+                Entry::Loaded(data) => {
+                    let keep = self.serial.saturating_sub(data.serial) < max_age;
+                    if !keep {
+                        self.pruned.insert(*id, data.font_data.downgrade());
+                    }
+                    keep
+                }
             });
             self.serial = self.serial.saturating_add(1);
         }
@@ -251,4 +279,36 @@ pub(crate) fn load_blob(path: &Path) -> Option<Blob<u8>> {
     let file = std::fs::File::open(path).ok()?;
     let mapped = unsafe { memmap2::Mmap::map(&file).ok()? };
     Some(Blob::new(Arc::new(mapped)))
+}
+
+// kun: pruning keeps a font that is still held.
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    use super::*;
+
+    fn roboto() -> SourceInfo {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../parley_dev/assets/fonts/roboto_fonts/Roboto-Regular.ttf"
+        );
+        SourceInfo::new(SourceId::new(), SourceKind::Path(Path::new(path).into()))
+    }
+
+    #[test]
+    fn a_font_pruned_while_held_loads_as_the_same_blob() {
+        let mut cache = SourceCache::default();
+        let source = roboto();
+        let held = cache.get(&source).unwrap();
+        cache.prune(0, true);
+        assert_eq!(cache.get(&source).unwrap().id(), held.id());
+    }
+
+    #[test]
+    fn a_font_pruned_that_no_one_holds_is_let_go() {
+        let mut cache = SourceCache::default();
+        let source = roboto();
+        let id = cache.get(&source).unwrap().id();
+        cache.prune(0, true);
+        assert_ne!(cache.get(&source).unwrap().id(), id);
+    }
 }

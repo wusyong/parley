@@ -9,6 +9,10 @@ mod cluster;
 mod data;
 pub(crate) mod shaped_text;
 pub(crate) mod shaper;
+// kun: whether a font's shaping can look at a space.
+mod space;
+// kun: what shaping words gave.
+mod words;
 
 pub use cluster::{Char, CharCluster, Coverage, SourceRange, Whitespace};
 pub use data::{Character, CharacterFlags, ShapedCluster};

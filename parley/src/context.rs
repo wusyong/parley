@@ -73,6 +73,35 @@ impl<B: Brush> LayoutContext<B> {
         self.shape_cache.reused
     }
 
+    // kun: how many words were taken from those shaped before, and how many
+    // were shaped and kept, for tests.
+    #[doc(hidden)]
+    pub fn words_reused_and_shaped(&self) -> (usize, usize) {
+        self.scx.words_reused_and_shaped()
+    }
+
+    // kun: how many times two words were shaped again as one, a space and the
+    // glyph beside it shaped together, for tests.
+    #[doc(hidden)]
+    pub fn words_joined(&self) -> usize {
+        self.scx.words_joined()
+    }
+
+    // kun: whether text is shaped a word at a time where that gives what
+    // shaping it whole does (it is unless turned off), for tests that compare
+    // the two.
+    #[doc(hidden)]
+    pub fn set_shape_words(&mut self, on: bool) {
+        self.scx.set_shape_words(on);
+    }
+
+    // kun: forgets the shapings kept, as fonts were added to the font
+    // context: font selection may pick others.
+    #[doc(hidden)]
+    pub fn clear_shapings(&mut self) {
+        self.shape_cache.clear(&mut self.scx);
+    }
+
     fn resolve_style_set(
         &mut self,
         font_ctx: &mut FontContext,
