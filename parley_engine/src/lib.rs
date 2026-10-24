@@ -113,6 +113,7 @@ pub mod bidi;
 pub mod break_overrides;
 mod glyph;
 pub mod itemize;
+mod line_table;
 mod lru_cache;
 pub mod shape;
 

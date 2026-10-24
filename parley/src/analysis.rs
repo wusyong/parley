@@ -55,6 +55,7 @@ pub(crate) fn analyze_text<B: Brush>(
         line_break: &lcx.line_break,
         break_spaces: &lcx.break_spaces,
         line_break_override,
+        skip_word_boundaries: lcx.skip_word_boundaries,
     };
     lcx.analyzer.analyze(text, &options, &mut lcx.analysis);
 }

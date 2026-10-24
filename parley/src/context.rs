@@ -32,6 +32,8 @@ pub struct LayoutContext<B: Brush = [u8; 4]> {
     pub(crate) analysis: Analysis,
     pub(crate) line_break: Vec<(Range<usize>, LineBreakConfig)>,
     pub(crate) break_spaces: Vec<Range<usize>>,
+    // kun: see `set_word_boundaries`.
+    pub(crate) skip_word_boundaries: bool,
 
     // Reusable style builders (to amortise allocations)
     pub(crate) ranged_style_builder: RangedStyleBuilder<B>,
@@ -58,6 +60,7 @@ impl<B: Brush> LayoutContext<B> {
             analysis: Analysis::new(),
             line_break: Vec::new(),
             break_spaces: Vec::new(),
+            skip_word_boundaries: false,
             ranged_style_builder: RangedStyleBuilder::default(),
             tree_style_builder: TreeStyleBuilder::default(),
             char_style_indices: vec![],
@@ -93,6 +96,23 @@ impl<B: Brush> LayoutContext<B> {
     #[doc(hidden)]
     pub fn set_shape_words(&mut self, on: bool) {
         self.scx.set_shape_words(on);
+    }
+
+    // kun: whether layouts mark word boundaries (`Cluster::is_word_boundary`;
+    // they do unless turned off), which moving and selecting by words in an
+    // editor use: text no one moves through that way is analyzed faster
+    // without.
+    #[doc(hidden)]
+    pub fn set_word_boundaries(&mut self, on: bool) {
+        self.skip_word_boundaries = !on;
+    }
+
+    // kun: how many texts had their line break opportunities looked up in a
+    // table, and how many of their words the table couldn't decide and were
+    // given to ICU4X, for tests.
+    #[doc(hidden)]
+    pub fn line_breaks_looked_up(&self) -> (usize, usize) {
+        self.analyzer.line_breaks_looked_up()
     }
 
     // kun: forgets the shapings kept, as fonts were added to the font

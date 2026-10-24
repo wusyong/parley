@@ -15,6 +15,10 @@ use crate::analysis::{Analysis, analyze_text};
 #[derive(Default)]
 pub struct Analyzer {
     pub(crate) bidi: BidiResolver,
+    // kun: how many texts had their line break opportunities looked up in
+    // the table, and how many of their words were given to ICU4X.
+    pub(crate) texts_looked_up: usize,
+    pub(crate) words_given: usize,
 }
 
 impl core::fmt::Debug for Analyzer {
@@ -27,6 +31,14 @@ impl Analyzer {
     /// Creates a new analyzer.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    // kun: how many texts had their line break opportunities looked up in a
+    // table, and how many of their words the table couldn't decide, for
+    // tests.
+    #[doc(hidden)]
+    pub fn line_breaks_looked_up(&self) -> (usize, usize) {
+        (self.texts_looked_up, self.words_given)
     }
 
     /// Analyze `text`, overwriting `analysis`.
@@ -90,6 +102,12 @@ pub struct AnalysisOptions<'a> {
     ///
     /// See [`LineBreakOverrideFn`] for more details.
     pub line_break_override: Option<&'a LineBreakOverrideFn>,
+
+    // kun: whether to leave word boundaries out (`CharInfo::is_word_boundary`
+    // is false then), for text no one moves through by words: finding them
+    // is a fifth of the analysis.
+    #[doc(hidden)]
+    pub skip_word_boundaries: bool,
 }
 
 impl core::fmt::Debug for AnalysisOptions<'_> {
@@ -98,6 +116,7 @@ impl core::fmt::Debug for AnalysisOptions<'_> {
             .field("base_direction", &self.base_direction)
             .field("line_break", &self.line_break)
             .field("break_spaces", &self.break_spaces)
+            .field("skip_word_boundaries", &self.skip_word_boundaries)
             .finish_non_exhaustive()
     }
 }
