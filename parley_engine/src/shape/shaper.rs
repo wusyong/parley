@@ -40,7 +40,7 @@ pub struct ShapeOptions<'a> {
     pub features: &'a [FontFeature],
     /// The font variations that are constant over an item.
     pub variations: &'a [FontVariation],
-    /// kun: CSS `font-optical-sizing: auto`: the `opsz` axis at the font size, unless the
+    /// machopo: CSS `font-optical-sizing: auto`: the `opsz` axis at the font size, unless the
     /// variations set it (a font without the axis ignores it).
     pub optical_sizing: bool,
 }
@@ -99,10 +99,10 @@ pub struct Shaper {
     shape_plan_cache: LruCache<cache::ShapePlanId, harfrust::ShapePlan>,
     unicode_buffer: Option<harfrust::UnicodeBuffer>,
     features: Vec<harfrust::Feature>,
-    /// kun: the item's variations, with `opsz` for optical sizing.
+    /// machopo: the item's variations, with `opsz` for optical sizing.
     variations: Vec<FontVariation>,
     char_cluster: CharCluster,
-    /// kun: what shaping words gave.
+    /// machopo: what shaping words gave.
     words: Words,
     word_scratch: WordScratch,
 }
@@ -131,28 +131,28 @@ impl core::fmt::Debug for Shaper {
 }
 
 impl Shaper {
-    /// kun: whether segments are shaped a word at a time where that gives what shaping them
+    /// machopo: whether segments are shaped a word at a time where that gives what shaping them
     /// whole does (it does unless turned off), so that a debug build can check it.
     #[doc(hidden)]
     pub fn set_shape_words(&mut self, on: bool) {
         self.words.enabled = on;
     }
 
-    /// kun: how many words were taken from those shaped before, and how many were shaped and
+    /// machopo: how many words were taken from those shaped before, and how many were shaped and
     /// kept, for tests.
     #[doc(hidden)]
     pub fn words_reused_and_shaped(&self) -> (usize, usize) {
         (self.words.reused, self.words.shaped)
     }
 
-    /// kun: how many times two words were shaped again as one, a space and the glyph beside it
+    /// machopo: how many times two words were shaped again as one, a space and the glyph beside it
     /// shaped together, for tests.
     #[doc(hidden)]
     pub fn words_joined(&self) -> usize {
         self.words.joined
     }
 
-    /// kun: forgets the words shaped: fonts were added, so font selection may pick others. A
+    /// machopo: forgets the words shaped: fonts were added, so font selection may pick others. A
     /// [`FontSelector::font_style`] id given out before may be given to another style after.
     #[doc(hidden)]
     pub fn clear_words(&mut self) {
@@ -313,7 +313,7 @@ fn shape_segment(
             ..,
         )
     }));
-    // kun: optical sizing sets the `opsz` axis to the font size (CSS Fonts 4), first so that
+    // machopo: optical sizing sets the `opsz` axis to the font size (CSS Fonts 4), first so that
     // the variations' own would win; a font without the axis ignores it.
     const OPSZ: parlance::Tag = parlance::Tag::new(b"opsz");
     scx.variations.clear();
@@ -323,7 +323,7 @@ fn shape_segment(
     }
     scx.variations.extend_from_slice(options.variations);
 
-    // kun: the shaper's parts, borrowed apart.
+    // machopo: the shaper's parts, borrowed apart.
     let Shaper {
         shape_data_cache,
         shape_instance_cache,
@@ -348,7 +348,7 @@ fn shape_segment(
         font_size: options.font_size,
     };
 
-    // kun: a word at a time, taking the words shaped before, where that gives what shaping the
+    // machopo: a word at a time, taking the words shaped before, where that gives what shaping the
     // segment whole does.
     if words.may_split(segment.bidi_level.is_ltr(), segment.script, options) {
         let mark = shaped_text.mark();
@@ -447,7 +447,7 @@ fn shape_segment(
     Ok(())
 }
 
-/// kun: what shaping a run with harfrust takes, the same over a segment.
+/// machopo: what shaping a run with harfrust takes, the same over a segment.
 struct Harf<'a> {
     shape_data_cache: &'a mut LruCache<cache::ShapeDataKey, harfrust::ShaperData>,
     shape_instance_cache: &'a mut LruCache<cache::ShapeInstanceId, harfrust::ShaperInstance>,
@@ -540,7 +540,7 @@ impl Harf<'_> {
             // that matches its `infos` counterpart. This allows us to lookup `infos` via cluster
             // index in `data.rs`.
             //
-            // kun: a tab shapes as a space, so it draws nothing (fonts seldom
+            // machopo: a tab shapes as a space, so it draws nothing (fonts seldom
             // map U+0009, and its .notdef box would show); line breaking
             // gives it its advance to the next tab stop, as Chrome draws it.
             let ch = if ch == '\t' { ' ' } else { ch };
@@ -572,7 +572,7 @@ impl Harf<'_> {
     }
 }
 
-/// kun: scratch for shaping a word at a time.
+/// machopo: scratch for shaping a word at a time.
 #[derive(Default)]
 struct WordScratch {
     /// The glyphs of the run being put together, clusters counted from its first character.
@@ -583,7 +583,7 @@ struct WordScratch {
     word_glyphs: Vec<HarfGlyph>,
 }
 
-/// kun: puts runs of words, each shaped on its own, together into runs of one font, as shaping
+/// machopo: puts runs of words, each shaped on its own, together into runs of one font, as shaping
 /// the text whole makes them; where shaping the text whole takes a space together with the glyph
 /// beside it, the words are shaped again as one.
 struct WordRuns<'a, 't> {
@@ -604,7 +604,7 @@ struct WordRuns<'a, 't> {
     joined: usize,
 }
 
-/// kun: where a word of a run being put together starts, within the run.
+/// machopo: where a word of a run being put together starts, within the run.
 #[derive(Clone, Copy, Default)]
 struct RunWord {
     /// Its first glyph, in the run's.
@@ -617,7 +617,7 @@ struct RunWord {
     joins_next: bool,
 }
 
-/// kun: what a word is shaped again with.
+/// machopo: what a word is shaped again with.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Join {
     Nothing,
@@ -805,7 +805,7 @@ impl WordRuns<'_, '_> {
     }
 }
 
-/// kun: shapes `segment` a word at a time, taking the fonts and glyphs kept for a word shaped
+/// machopo: shapes `segment` a word at a time, taking the fonts and glyphs kept for a word shaped
 /// before with the same styles and options, and keeping those of the others.
 ///
 /// Returns `Ok(false)`, part of the segment shaped, if a font shapes a space together with what
@@ -983,7 +983,7 @@ fn shape_words(
     Ok(true)
 }
 
-/// kun: the words of the text in `range`: it is split before each space and after it, where a
+/// machopo: the words of the text in `range`: it is split before each space and after it, where a
 /// grapheme starts.
 fn word_ranges<'a>(
     text: &'a str,
@@ -1069,7 +1069,7 @@ pub trait FontSelector {
         cluster: &mut CharCluster,
     ) -> Option<FontInstanceRef<'_>>;
 
-    /// kun: an id for what [`Self::select_font`] takes from the style at `style_index`, the same
+    /// machopo: an id for what [`Self::select_font`] takes from the style at `style_index`, the same
     /// for styles alike in every text shaped with this [`Shaper`] until
     /// [`Shaper::clear_words`]: with ids, a word shaped before with the same ids, script and
     /// options takes the fonts it took then, without asking for them. `None` shapes the

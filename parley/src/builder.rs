@@ -390,7 +390,7 @@ fn build_into_layout<B: Brush>(
             text,
             layout,
             &lcx.analysis_data_sources,
-            // kun: the shapings kept.
+            // machopo: the shapings kept.
             &mut lcx.shape_cache,
         );
     }

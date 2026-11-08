@@ -32,7 +32,7 @@ pub struct LayoutContext<B: Brush = [u8; 4]> {
     pub(crate) analysis: Analysis,
     pub(crate) line_break: Vec<(Range<usize>, LineBreakConfig)>,
     pub(crate) break_spaces: Vec<Range<usize>>,
-    // kun: see `set_word_boundaries`.
+    // machopo: see `set_word_boundaries`.
     pub(crate) skip_word_boundaries: bool,
 
     // Reusable style builders (to amortise allocations)
@@ -42,7 +42,7 @@ pub struct LayoutContext<B: Brush = [u8; 4]> {
     /// Style index for each character, parallel to [`Analysis::char_info`].
     pub(crate) char_style_indices: Vec<u16>,
     pub(crate) scx: Shaper,
-    // kun: shapings kept for layouts alike.
+    // machopo: shapings kept for layouts alike.
     pub(crate) shape_cache: super::shape::ShapeCache,
 
     // Unicode analysis data sources (provided by icu)
@@ -70,27 +70,27 @@ impl<B: Brush> LayoutContext<B> {
         }
     }
 
-    // kun: how many layouts took the shaping of one alike, for tests.
+    // machopo: how many layouts took the shaping of one alike, for tests.
     #[doc(hidden)]
     pub fn shapings_reused(&self) -> usize {
         self.shape_cache.reused
     }
 
-    // kun: how many words were taken from those shaped before, and how many
+    // machopo: how many words were taken from those shaped before, and how many
     // were shaped and kept, for tests.
     #[doc(hidden)]
     pub fn words_reused_and_shaped(&self) -> (usize, usize) {
         self.scx.words_reused_and_shaped()
     }
 
-    // kun: how many times two words were shaped again as one, a space and the
+    // machopo: how many times two words were shaped again as one, a space and the
     // glyph beside it shaped together, for tests.
     #[doc(hidden)]
     pub fn words_joined(&self) -> usize {
         self.scx.words_joined()
     }
 
-    // kun: whether text is shaped a word at a time where that gives what
+    // machopo: whether text is shaped a word at a time where that gives what
     // shaping it whole does (it is unless turned off), for tests that compare
     // the two.
     #[doc(hidden)]
@@ -98,7 +98,7 @@ impl<B: Brush> LayoutContext<B> {
         self.scx.set_shape_words(on);
     }
 
-    // kun: whether layouts mark word boundaries (`Cluster::is_word_boundary`;
+    // machopo: whether layouts mark word boundaries (`Cluster::is_word_boundary`;
     // they do unless turned off), which moving and selecting by words in an
     // editor use: text no one moves through that way is analyzed faster
     // without.
@@ -107,7 +107,7 @@ impl<B: Brush> LayoutContext<B> {
         self.skip_word_boundaries = !on;
     }
 
-    // kun: how many texts had their line break opportunities looked up in a
+    // machopo: how many texts had their line break opportunities looked up in a
     // table, and how many of their words the table couldn't decide and were
     // given to ICU4X, for tests.
     #[doc(hidden)]
@@ -115,7 +115,7 @@ impl<B: Brush> LayoutContext<B> {
         self.analyzer.line_breaks_looked_up()
     }
 
-    // kun: forgets the shapings kept, as fonts were added to the font
+    // machopo: forgets the shapings kept, as fonts were added to the font
     // context: font selection may pick others.
     #[doc(hidden)]
     pub fn clear_shapings(&mut self) {

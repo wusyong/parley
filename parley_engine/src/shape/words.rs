@@ -1,7 +1,7 @@
 // Copyright 2026 the Parley Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! kun: what shaping a word gave, kept for the next time the same word is
+//! machopo: what shaping a word gave, kept for the next time the same word is
 //! shaped alike: text is mostly the same words again, and shaping one
 //! again (picking its fonts, running harfrust) is most of the time text
 //! takes. Gecko's `gfxShapedWord` cache and `WebKit`'s `WidthCache` keep

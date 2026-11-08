@@ -15,7 +15,7 @@ use crate::analysis::{Analysis, analyze_text};
 #[derive(Default)]
 pub struct Analyzer {
     pub(crate) bidi: BidiResolver,
-    // kun: how many texts had their line break opportunities looked up in
+    // machopo: how many texts had their line break opportunities looked up in
     // the table, and how many of their words were given to ICU4X.
     pub(crate) texts_looked_up: usize,
     pub(crate) words_given: usize,
@@ -33,7 +33,7 @@ impl Analyzer {
         Self::default()
     }
 
-    // kun: how many texts had their line break opportunities looked up in a
+    // machopo: how many texts had their line break opportunities looked up in a
     // table, and how many of their words the table couldn't decide, for
     // tests.
     #[doc(hidden)]
@@ -103,7 +103,7 @@ pub struct AnalysisOptions<'a> {
     /// See [`LineBreakOverrideFn`] for more details.
     pub line_break_override: Option<&'a LineBreakOverrideFn>,
 
-    // kun: whether to leave word boundaries out (`CharInfo::is_word_boundary`
+    // machopo: whether to leave word boundaries out (`CharInfo::is_word_boundary`
     // is false then), for text no one moves through by words: finding them
     // is a fifth of the analysis.
     #[doc(hidden)]

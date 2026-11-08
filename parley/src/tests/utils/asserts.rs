@@ -37,7 +37,7 @@ fn canonicalize_layout_data<B: Brush>(layout_data: &LayoutData<B>) -> LayoutData
         }
     }
 
-    // kun: the shaped text is shared.
+    // machopo: the shaped text is shared.
     alloc::sync::Arc::make_mut(&mut normalized.shaped_text).remap_styles(&remap);
     normalized.styles = canonical_styles;
     normalized.style_metrics = canonical_metrics;

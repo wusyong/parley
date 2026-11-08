@@ -396,7 +396,7 @@ impl<'a, B: Brush> Iterator for Clusters<'a, B> {
     }
 }
 
-/// kun: a slice's graphemes, each with the atom it is in, in logical order
+/// machopo: a slice's graphemes, each with the atom it is in, in logical order
 /// or its reverse: what [`Clusters`] walks, and [`GlyphSpan::clusters`]
 /// without the layout.
 ///

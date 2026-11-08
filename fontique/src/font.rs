@@ -221,7 +221,7 @@ impl FontInfo {
         // It's probably not useful to retain fonts that don't have
         // a valid cmap so just bail here if we fail.
         let charmap_index = CharmapIndex::new(font)?;
-        // kun: nor fonts without an em to scale their glyphs by: an Apple
+        // machopo: nor fonts without an em to scale their glyphs by: an Apple
         // bitmap font has `bhed` for `head` (macOS's GB18030 Bitmap), and
         // its em of 0 units would put its glyphs at NaN. Text falls back
         // as if it weren't there (OTS rejects such a web font too).

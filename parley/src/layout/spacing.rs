@@ -118,7 +118,7 @@ impl Spacing {
     }
 }
 
-/// kun: a tab's advance, gaps included, at `position` from the line's start edge: to the next
+/// machopo: a tab's advance, gaps included, at `position` from the line's start edge: to the next
 /// tab stop, or to the one after it when that is nearer than `stops.min_advance` (CSS Text 3,
 /// `tab-size`; Blink's `Font::TabWidth`). Without tab stops (an interval of 0) the tab has only
 /// its letter spacing.
@@ -162,7 +162,7 @@ impl Default for Justification {
 }
 
 /// Additional spacing to apply, including justification (if any).
-// kun: `PartialEq` for `GlyphSpan`.
+// machopo: `PartialEq` for `GlyphSpan`.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(crate) struct EffectiveSpacing {
     spacing: Spacing,

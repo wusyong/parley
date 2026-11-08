@@ -151,7 +151,7 @@ impl AnalysisDataSources {
     }
 }
 
-// kun: the line segmenter for the default configuration, which the line
+// machopo: the line segmenter for the default configuration, which the line
 // break table gives what of, for its tests.
 #[cfg(test)]
 pub(crate) fn default_line_segmenter() -> LineSegmenterBorrowed<'static> {
@@ -566,7 +566,7 @@ pub(crate) fn analyze_text(
     for (substring_index, (substring, segmenter_key, last)) in contiguous_substrings.enumerate() {
         // Fast path for text with a single segmenter configuration.
         if substring_index == 0 && last {
-            // kun: the default configuration's opportunities looked up in a
+            // machopo: the default configuration's opportunities looked up in a
             // table, where it can decide them.
             if segmenter_key == SegmenterKey::DEFAULT {
                 analyzer.texts_looked_up += 1;
@@ -643,7 +643,7 @@ pub(crate) fn analyze_text(
     }
 
     // Collect boundary byte positions compactly
-    // kun: none when word boundaries are left out.
+    // machopo: none when word boundaries are left out.
     let mut wb_iter = (!options.skip_word_boundaries)
         .then(|| data_sources.word_segmenter().segment_str(text).peekable());
     let mut gb_iter = data_sources

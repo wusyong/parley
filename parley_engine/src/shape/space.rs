@@ -1,7 +1,7 @@
 // Copyright 2026 the Parley Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! kun: how far shaping with a font reaches across a space, so that text
+//! machopo: how far shaping with a font reaches across a space, so that text
 //! in it shapes the same a word at a time as all at once.
 
 use alloc::boxed::Box;

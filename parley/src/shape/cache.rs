@@ -1,7 +1,7 @@
 // Copyright 2026 the Parley Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! kun: what shaping a layout's text gave, kept for the next layout with
+//! machopo: what shaping a layout's text gave, kept for the next layout with
 //! the same text, styled the same in what changes shaping, with its inline
 //! boxes in the same places and the same analysis: a browser shapes the
 //! same text again as content is built again, and alike text in alike

@@ -1,7 +1,7 @@
 // Copyright 2026 the Parley Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-//! kun: line break opportunities looked up in a table for characters up to
+//! machopo: line break opportunities looked up in a table for characters up to
 //! U+017F and from U+2000 to U+203F (Latin-1, Latin Extended-A and the
 //! commonest punctuation), giving what ICU4X's line segmenter gives under the
 //! default options; the words the table can't decide are given to ICU4X.

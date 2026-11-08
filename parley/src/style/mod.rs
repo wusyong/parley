@@ -275,16 +275,16 @@ pub enum StyleProperty<'a, B: Brush> {
     TextWrapMode(TextWrapMode),
     /// Whitespace collapsing and hanging behavior.
     WhiteSpaceCollapse(WhiteSpaceCollapse),
-    /// kun: where a tab reaches (CSS `tab-size`); `None` leaves it its shaped advance.
+    /// machopo: where a tab reaches (CSS `tab-size`); `None` leaves it its shaped advance.
     TabStops(Option<TabStops>),
-    /// kun: CSS `font-optical-sizing: auto`: a font with an `opsz` axis is shaped and drawn
+    /// machopo: CSS `font-optical-sizing: auto`: a font with an `opsz` axis is shaped and drawn
     /// at the font size on it, unless the font variations set it.
     OpticalSizing(bool),
-    /// kun: how a line may break after a soft hyphen (CSS `hyphens`).
+    /// machopo: how a line may break after a soft hyphen (CSS `hyphens`).
     SoftHyphens(SoftHyphens),
 }
 
-/// kun: tab stops for CSS `tab-size`, in layout units before the display scale, worked out by
+/// machopo: tab stops for CSS `tab-size`, in layout units before the display scale, worked out by
 /// the embedder (a number of spaces is counted in the block container's space).
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct TabStops {
@@ -295,7 +295,7 @@ pub struct TabStops {
     pub min_advance: f32,
 }
 
-/// kun: how a line may break after a soft hyphen (U+00AD), for CSS `hyphens`, which the
+/// machopo: how a line may break after a soft hyphen (U+00AD), for CSS `hyphens`, which the
 /// embedder works out with the hyphen's advance (it draws the hyphen).
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
 pub enum SoftHyphens {
@@ -377,11 +377,11 @@ pub struct TextStyle<'family, 'settings, B: Brush> {
     pub text_wrap_mode: TextWrapMode,
     /// Whitespace collapsing and hanging behavior.
     pub white_space_collapse: WhiteSpaceCollapse,
-    /// kun: where a tab reaches (CSS `tab-size`); `None` leaves it its shaped advance.
+    /// machopo: where a tab reaches (CSS `tab-size`); `None` leaves it its shaped advance.
     pub tab_stops: Option<TabStops>,
-    /// kun: CSS `font-optical-sizing: auto` (off by default, as upstream has it).
+    /// machopo: CSS `font-optical-sizing: auto` (off by default, as upstream has it).
     pub optical_sizing: bool,
-    /// kun: how a line may break after a soft hyphen (CSS `hyphens`).
+    /// machopo: how a line may break after a soft hyphen (CSS `hyphens`).
     pub soft_hyphens: SoftHyphens,
 }
 

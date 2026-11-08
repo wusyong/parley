@@ -19,7 +19,7 @@ mod whitespace;
 )]
 mod layout;
 
-// kun: `ShapedText`, what `Layout::shaped_text` shares.
+// machopo: `ShapedText`, what `Layout::shaped_text` shares.
 pub use parley_engine::{FontMetrics, Glyph, ShapedText};
 
 pub(crate) mod data;
@@ -71,9 +71,9 @@ pub struct Style<B: Brush> {
     pub(crate) text_wrap_mode: TextWrapMode,
     /// Per-cluster whitespace collapsing and hanging behavior.
     pub(crate) white_space_collapse: WhiteSpaceCollapse,
-    /// kun: where a tab reaches (CSS `tab-size`); `None` leaves it its shaped advance.
+    /// machopo: where a tab reaches (CSS `tab-size`); `None` leaves it its shaped advance.
     pub(crate) tab_stops: Option<crate::TabStops>,
-    /// kun: how a line may break after a soft hyphen (CSS `hyphens`).
+    /// machopo: how a line may break after a soft hyphen (CSS `hyphens`).
     pub(crate) soft_hyphens: crate::SoftHyphens,
     /// The locale of the text, if any.
     ///

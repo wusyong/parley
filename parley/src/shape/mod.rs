@@ -4,7 +4,7 @@
 //! Text shaping implementation using `harfrust`for shaping
 //! and `icu` for text analysis.
 
-// kun: shapings kept for layouts alike.
+// machopo: shapings kept for layouts alike.
 mod cache;
 pub(crate) use cache::ShapeCache;
 
@@ -59,7 +59,7 @@ pub(crate) fn shape_text<'a, B: Brush>(
     mut text: &str,
     layout: &mut Layout<B>,
     analysis_data_sources: &AnalysisDataSources,
-    // kun: the shapings kept (`cache`).
+    // machopo: the shapings kept (`cache`).
     cache: &mut ShapeCache,
 ) {
     // If we have both empty text and no inline boxes, shape with a fake space
@@ -105,7 +105,7 @@ pub(crate) fn shape_text<'a, B: Brush>(
 
     // Split when shaping-relevant style properties change and at inline boxes.
     //
-    // kun: made again for each time the text is shaped.
+    // machopo: made again for each time the text is shaped.
     let items = || {
         let mut inline_box_iter = inline_boxes.iter().map(|b| &b.inline_box).peekable();
 
@@ -164,7 +164,7 @@ pub(crate) fn shape_text<'a, B: Brush>(
                         || style.locale != item_style.locale
                         || style.font_variations != item_style.font_variations
                         || style.font_features != item_style.font_features
-                        // kun: optical sizing, which shaping adds to the variations.
+                        // machopo: optical sizing, which shaping adds to the variations.
                         || style.optical_sizing != item_style.optical_sizing
                         || !nearly_eq(style.letter_spacing, item_style.letter_spacing)
                         || !nearly_eq(style.word_spacing, item_style.word_spacing);
@@ -191,11 +191,11 @@ pub(crate) fn shape_text<'a, B: Brush>(
         })
     };
 
-    // kun: an id for what font selection takes from each style, which words
+    // machopo: an id for what font selection takes from each style, which words
     // shaped are kept by.
     let font_styles = cache.font_styles(rcx, styles, scx);
 
-    // kun: the shaping of a layout with the same text, styled the same in
+    // machopo: the shaping of a layout with the same text, styled the same in
     // what changes shaping, if one was kept; each character takes this
     // layout's style.
     let key = cache::Key::new(
@@ -257,7 +257,7 @@ pub(crate) fn shape_text<'a, B: Brush>(
             font_selector,
             Arc::make_mut(&mut layout.data.shaped_text),
         );
-        // kun: what shaping the text whole gives, if words were taken or
+        // machopo: what shaping the text whole gives, if words were taken or
         // kept.
         #[cfg(debug_assertions)]
         if (scx.words_reused_and_shaped(), scx.words_joined()) != words_before {
@@ -360,7 +360,7 @@ struct FontSelector<'a, 'b, B: Brush> {
 
     /// The first font [`Self::query`] yields with a charmap, if any, cached.
     ///
-    /// kun: upstream caches only whether there is one (`query_yields_font`).
+    /// machopo: upstream caches only whether there is one (`query_yields_font`).
     first_font: Option<Option<QueryFont>>,
 
     /// The font to use if [`Self::query`] doesn't return any font.
@@ -368,7 +368,7 @@ struct FontSelector<'a, 'b, B: Brush> {
 
     analysis_data_sources: &'a AnalysisDataSources,
 
-    /// kun: an id for what font selection takes from each style.
+    /// machopo: an id for what font selection takes from each style.
     font_styles: &'b [u32],
 }
 
@@ -385,7 +385,7 @@ impl<'a, 'b, B: Brush> FontSelector<'a, 'b, B> {
         font_styles: &'b [u32],
     ) -> Self {
         let attrs = fontique::Attributes::default();
-        // kun: the query may have shaped with another selector (a debug
+        // machopo: the query may have shaped with another selector (a debug
         // build shapes again with it), which set its attributes.
         query.set_attributes(attrs);
 
@@ -508,7 +508,7 @@ impl<'a, 'b, B: Brush> parley_engine::FontSelector for FontSelector<'a, 'b, B> {
             };
         }
 
-        // kun: the query below picks the first font that covers the cluster completely, so when
+        // machopo: the query below picks the first font that covers the cluster completely, so when
         // the first font with a charmap does, it is the answer: most clusters take it without
         // going through the query (Blink shapes a run with its primary font first, too). A debug
         // build checks it against the whole query.
@@ -547,7 +547,7 @@ impl<'a, 'b, B: Brush> parley_engine::FontSelector for FontSelector<'a, 'b, B> {
     }
 }
 
-// kun: the query's part of `select_font`, so that a debug build can run it again.
+// machopo: the query's part of `select_font`, so that a debug build can run it again.
 /// The first font `query` yields that covers `cluster` completely, else the one that covers the
 /// most of it.
 fn best_font<'q>(

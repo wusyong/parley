@@ -180,7 +180,7 @@ pub struct LineMetrics {
     // into two fields.
     pub hanging_advance: f32,
 
-    /// kun: the portion of [`Self::advance`] that is a hyphen at the line's logical end, which
+    /// machopo: the portion of [`Self::advance`] that is a hyphen at the line's logical end, which
     /// the embedder draws: the line broke after a soft hyphen whose style has
     /// [`SoftHyphens::Hyphen`](crate::SoftHyphens::Hyphen). In RTL paragraphs, the line's items
     /// leave room for it on the left of [`Self::offset`].
@@ -331,7 +331,7 @@ impl<'a, B: Brush> GlyphRun<'a, B> {
         self.run.glyphs_in(self.shaped_clusters.clone())
     }
 
-    /// kun: where the run's glyphs are in its layout's shaped text, and the
+    /// machopo: where the run's glyphs are in its layout's shaped text, and the
     /// spacing they take on its line: [`GlyphSpan::glyphs`] with the
     /// layout's [`shaped_text`](crate::Layout::shaped_text) is what
     /// [`Self::glyphs`] gives.
@@ -359,7 +359,7 @@ impl<'a, B: Brush> GlyphRun<'a, B> {
     }
 }
 
-/// kun: a glyph run's glyphs without the layout: where they are in its
+/// machopo: a glyph run's glyphs without the layout: where they are in its
 /// shaped text, and the spacing they take on their line ([`GlyphRun::span`]).
 /// A layout's shaped text is shared ([`Layout::shaped_text`]), so what is kept
 /// of a layout can walk its glyphs once the layout has moved on (Blink's
@@ -379,7 +379,7 @@ pub struct GlyphSpan {
     spacing: EffectiveSpacing,
 }
 
-/// kun: a cluster of a [`GlyphSpan`] ([`GlyphSpan::clusters`]): its text
+/// machopo: a cluster of a [`GlyphSpan`] ([`GlyphSpan::clusters`]): its text
 /// and advance, as its [`Cluster`](crate::Cluster) has them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SpanCluster {

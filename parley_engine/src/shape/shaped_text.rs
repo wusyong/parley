@@ -155,7 +155,7 @@ pub struct ShapedText {
     normalized_coords: Vec<NormalizedCoord>,
 }
 
-/// kun: what harfrust gives for a glyph, in font units: what a word's
+/// machopo: what harfrust gives for a glyph, in font units: what a word's
 /// shaping keeps.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct HarfGlyph {
@@ -186,7 +186,7 @@ impl HarfGlyph {
     }
 }
 
-/// kun: how far a [`ShapedText`] went, to go back to.
+/// machopo: how far a [`ShapedText`] went, to go back to.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ShapedTextMark {
     runs: usize,
@@ -213,7 +213,7 @@ impl ShapedText {
         self.glyphs.reserve(additional_chars);
     }
 
-    /// kun: how far this shaping went.
+    /// machopo: how far this shaping went.
     pub(crate) fn mark(&self) -> ShapedTextMark {
         ShapedTextMark {
             runs: self.runs.len(),
@@ -225,7 +225,7 @@ impl ShapedText {
         }
     }
 
-    /// kun: drops what was shaped after `mark` (fonts first used after it
+    /// machopo: drops what was shaped after `mark` (fonts first used after it
     /// included).
     pub(crate) fn truncate(&mut self, mark: ShapedTextMark) {
         self.runs.truncate(mark.runs);
@@ -247,7 +247,7 @@ impl ShapedText {
         self.normalized_coords.clear();
     }
 
-    /// kun: gives the shaped cluster at `cluster_index` the advance `advance`, its glyphs together
+    /// machopo: gives the shaped cluster at `cluster_index` the advance `advance`, its glyphs together
     /// (the first one takes up the difference): a tab's, which a line breaker works out from where
     /// the tab is on its line. The run's advance follows.
     pub fn set_cluster_advance(&mut self, cluster_index: u32, advance: f32) {
@@ -303,7 +303,7 @@ impl ShapedText {
         }
     }
 
-    // kun: for a layout that takes the shaping of another with the same
+    // machopo: for a layout that takes the shaping of another with the same
     // text, styled otherwise in what doesn't change shaping (only its
     // colors, say): each character takes this one's style, and each shaped
     // cluster its first character's, as shaping gives them.
@@ -372,7 +372,7 @@ impl ShapedText {
         char_info: &[CharInfo],
         char_style_indices: &[u16],
         font: &FontInstance,
-        // kun: the glyphs harfrust gave, from its buffer or kept for words.
+        // machopo: the glyphs harfrust gave, from its buffer or kept for words.
         glyphs: impl DoubleEndedIterator<Item = HarfGlyph>,
         normalized_coords: &[harfrust::NormalizedCoord],
     ) {

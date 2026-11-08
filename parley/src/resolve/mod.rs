@@ -406,15 +406,15 @@ pub(crate) enum ResolvedProperty<B: Brush> {
     TextWrapMode(TextWrapMode),
     /// Whitespace collapsing and hanging behavior.
     WhiteSpaceCollapse(WhiteSpaceCollapse),
-    /// kun: where a tab reaches.
+    /// machopo: where a tab reaches.
     TabStops(Option<TabStops>),
-    /// kun: CSS `font-optical-sizing: auto`.
+    /// machopo: CSS `font-optical-sizing: auto`.
     OpticalSizing(bool),
-    /// kun: how a line may break after a soft hyphen.
+    /// machopo: how a line may break after a soft hyphen.
     SoftHyphens(SoftHyphens),
 }
 
-/// kun: a soft hyphen's hyphen scaled as the other lengths are.
+/// machopo: a soft hyphen's hyphen scaled as the other lengths are.
 fn scale_soft_hyphens(value: SoftHyphens, scale: f32) -> SoftHyphens {
     match value {
         SoftHyphens::Hyphen(advance) => SoftHyphens::Hyphen(advance * scale),
@@ -422,7 +422,7 @@ fn scale_soft_hyphens(value: SoftHyphens, scale: f32) -> SoftHyphens {
     }
 }
 
-/// kun: tab stops scaled as the other lengths are.
+/// machopo: tab stops scaled as the other lengths are.
 fn scale_tab_stops(value: Option<TabStops>, scale: f32) -> Option<TabStops> {
     value.map(|stops| TabStops {
         interval: stops.interval * scale,
@@ -476,11 +476,11 @@ pub(crate) struct ResolvedStyle<B: Brush> {
     pub(crate) text_wrap_mode: TextWrapMode,
     /// Whitespace collapsing and hanging behavior.
     pub(crate) white_space_collapse: WhiteSpaceCollapse,
-    /// kun: where a tab reaches.
+    /// machopo: where a tab reaches.
     pub(crate) tab_stops: Option<TabStops>,
-    /// kun: CSS `font-optical-sizing: auto`.
+    /// machopo: CSS `font-optical-sizing: auto`.
     pub(crate) optical_sizing: bool,
-    /// kun: how a line may break after a soft hyphen.
+    /// machopo: how a line may break after a soft hyphen.
     pub(crate) soft_hyphens: SoftHyphens,
 }
 

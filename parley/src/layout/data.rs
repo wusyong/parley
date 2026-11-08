@@ -179,7 +179,7 @@ pub(crate) struct LayoutData<B: Brush> {
     pub(crate) inline_boxes: Vec<LayoutInlineBox>,
 
     // Output of shaping (input to line breaking)
-    // kun: shared with the shaping cache and with what the embedder keeps of
+    // machopo: shared with the shaping cache and with what the embedder keeps of
     // the layout (`Layout::shaped_text`); changed only where no one else
     // holds it (`Arc::make_mut`).
     pub(crate) shaped_text: Arc<ShapedText>,
@@ -212,7 +212,7 @@ pub(crate) struct LayoutData<B: Brush> {
     pub(crate) indent_amount: f32,
     /// Options controlling text-indent behavior (each-line, hanging).
     pub(crate) indent_options: IndentOptions,
-    /// kun: whether the line after a final forced break (a newline ending the text), which has
+    /// machopo: whether the line after a final forced break (a newline ending the text), which has
     /// nothing on it, is made (`Layout::set_line_after_final_break`).
     pub(crate) line_after_final_break: bool,
 }
@@ -261,7 +261,7 @@ impl<B: Brush> LayoutData<B> {
         self.styles.clear();
         self.style_metrics.clear();
         self.inline_boxes.clear();
-        // kun: one held elsewhere stays as it is.
+        // machopo: one held elsewhere stays as it is.
         match Arc::get_mut(&mut self.shaped_text) {
             Some(shaped_text) => shaped_text.clear(),
             None => self.shaped_text = Arc::default(),
@@ -401,7 +401,7 @@ struct ContentWidthsMeasurer {
     /// skipped.
     glue_next: bool,
 
-    /// kun: how a line may break at the next opportunity, as in the line breaker: the last
+    /// machopo: how a line may break at the next opportunity, as in the line breaker: the last
     /// atom's style's [`SoftHyphens`] if it is a soft hyphen, otherwise `Break`.
     soft_hyphen: SoftHyphens,
 }
@@ -433,7 +433,7 @@ impl ContentWidthsMeasurer {
         self.running_min_width = 0.0;
     }
 
-    /// kun: [`Self::soft_break`] at a soft wrap opportunity, after a soft hyphen as its style has
+    /// machopo: [`Self::soft_break`] at a soft wrap opportunity, after a soft hyphen as its style has
     /// it (`soft_hyphen`): the fragment ends with the hyphen, or doesn't end.
     #[inline(always)]
     fn soft_break_after(&mut self, soft_hyphen: SoftHyphens) {
@@ -500,13 +500,13 @@ impl ContentWidthsMeasurer {
                     let opportunity_after = inline_box.line_break
                         == InlineBoxLineBreak::KeepWithNext
                         && layout_data.soft_wrap_opportunity_after_box(item_idx);
-                    // kun: an atomic inline wraps as the span it is in does (as in the line
+                    // machopo: an atomic inline wraps as the span it is in does (as in the line
                     // breaker).
                     if inline_box.line_break == InlineBoxLineBreak::Auto {
                         self.text_wrap_mode = layout_data.styles
                             [usize::from(layout_box.parent_style_index)]
                         .text_wrap_mode;
-                        // kun: the opportunities beside an atomic inline are its own.
+                        // machopo: the opportunities beside an atomic inline are its own.
                         self.soft_hyphen = SoftHyphens::Break;
                     }
                     self.measure_inline_box(inline_box, opportunity_after);
@@ -564,7 +564,7 @@ impl ContentWidthsMeasurer {
                 skip_atom = false;
                 let prev_text_wrap_mode = self.text_wrap_mode;
                 self.text_wrap_mode = style.text_wrap_mode;
-                // kun: an opportunity after a soft hyphen is taken as its style has it.
+                // machopo: an opportunity after a soft hyphen is taken as its style has it.
                 let soft_hyphen = core::mem::replace(
                     &mut self.soft_hyphen,
                     if cluster.is_soft_hyphen() {
@@ -609,7 +609,7 @@ impl ContentWidthsMeasurer {
                     advance += gap;
                 }
             }
-            // kun: a tab reaches the next tab stop from where it is on each of the two lines:
+            // machopo: a tab reaches the next tab stop from where it is on each of the two lines:
             // gaps and all (`tab_advance`).
             let tab_stops = if whitespace == Whitespace::Tab {
                 style.tab_stops

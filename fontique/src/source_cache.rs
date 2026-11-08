@@ -42,7 +42,7 @@ pub struct SourceCache {
     serial: u64,
     #[cfg(feature = "std")]
     shared: Option<Arc<Mutex<Shared>>>,
-    /// kun: the blobs pruned, while something else still holds them: loading
+    /// machopo: the blobs pruned, while something else still holds them: loading
     /// one again takes the same blob, so the same font has one id (a
     /// shaping kept elsewhere holds its font, and one font in two copies
     /// is two fonts to whoever compares them by id) and one copy in memory.
@@ -108,7 +108,7 @@ impl SourceCache {
                 use hashbrown::hash_map::Entry as HashEntry;
                 match self.cache.entry(source.id()) {
                     HashEntry::Vacant(vacant) => {
-                        // kun: a blob pruned that is still held.
+                        // machopo: a blob pruned that is still held.
                         if let Some(blob) = self
                             .pruned
                             .remove(&source.id())
@@ -170,7 +170,7 @@ impl SourceCache {
     pub fn prune(&mut self, max_age: u64, prune_failed: bool) {
         #[cfg(feature = "std")]
         {
-            // kun: what is pruned is kept weakly; what no one holds is let go.
+            // machopo: what is pruned is kept weakly; what no one holds is let go.
             self.pruned.retain(|_, weak| weak.upgrade().is_some());
             self.cache.retain(|id, entry| match entry {
                 Entry::Failed => !prune_failed,
@@ -281,7 +281,7 @@ pub(crate) fn load_blob(path: &Path) -> Option<Blob<u8>> {
     Some(Blob::new(Arc::new(mapped)))
 }
 
-// kun: pruning keeps a font that is still held.
+// machopo: pruning keeps a font that is still held.
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;

@@ -63,7 +63,7 @@ impl<B: Brush> Layout<B> {
         self.data.scale
     }
 
-    /// kun: the layout's shaped text, shared: what is kept of it (a
+    /// machopo: the layout's shaped text, shared: what is kept of it (a
     /// [`GlyphSpan`]'s glyphs) outlives the layout, and breaking its lines
     /// again leaves it as it is.
     ///
@@ -195,7 +195,7 @@ impl<B: Brush> Layout<B> {
         self.data.indent_options = options;
     }
 
-    /// kun: sets whether the line after a final forced break (a newline ending the text) is made.
+    /// machopo: sets whether the line after a final forced break (a newline ending the text) is made.
     ///
     /// By default it is: an editor puts the caret there. CSS makes no line box after the last
     /// forced break when nothing follows it (Blink's line breaker stops at the end of the

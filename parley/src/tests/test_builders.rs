@@ -236,7 +236,7 @@ fn create_root_style() -> TextStyle<'static, 'static, ColorBrush> {
         overflow_wrap: OverflowWrap::Anywhere,
         text_wrap_mode: TextWrapMode::Wrap,
         white_space_collapse: WhiteSpaceCollapse::PreserveBreaks,
-        // kun
+        // machopo
         tab_stops: Some(TabStops {
             interval: 40.,
             min_advance: 3.,
@@ -281,7 +281,7 @@ fn set_root_style(rb: &mut RangedBuilder<'_, ColorBrush>) {
     rb.push_default(StyleProperty::WhiteSpaceCollapse(
         WhiteSpaceCollapse::PreserveBreaks,
     ));
-    // kun
+    // machopo
     rb.push_default(StyleProperty::TabStops(Some(TabStops {
         interval: 40.,
         min_advance: 3.,

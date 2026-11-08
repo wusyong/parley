@@ -51,7 +51,7 @@ impl ShapedClusterFlags {
     /// [`Whitespace`] class of the cluster's first character (3 bits).
     const WHITESPACE_SHIFT: u16 = 12;
     const WHITESPACE_MASK: u16 = 0b111 << Self::WHITESPACE_SHIFT;
-    /// kun: whether the cluster's first character is a soft hyphen (U+00AD).
+    /// machopo: whether the cluster's first character is a soft hyphen (U+00AD).
     const SOFT_HYPHEN: u16 = 1 << 15;
 
     #[inline(always)]
@@ -94,7 +94,7 @@ impl ShapedClusterFlags {
         self
     }
 
-    /// kun: see [`Self::SOFT_HYPHEN`].
+    /// machopo: see [`Self::SOFT_HYPHEN`].
     #[inline(always)]
     pub(crate) const fn with_soft_hyphen(mut self, set: bool) -> Self {
         self.0 = self.0 & !Self::SOFT_HYPHEN | if set { Self::SOFT_HYPHEN } else { 0 };
@@ -239,7 +239,7 @@ impl ShapedCluster {
         self.flags.is_soft_wrap_opportunity_before()
     }
 
-    /// kun: whether this cluster's first character is a soft hyphen (U+00AD), cached like
+    /// machopo: whether this cluster's first character is a soft hyphen (U+00AD), cached like
     /// [`Self::is_soft_wrap_opportunity_before`].
     #[inline(always)]
     pub fn is_soft_hyphen(self) -> bool {
@@ -287,7 +287,7 @@ impl CharacterFlags {
     const WORD_BOUNDARY: u8 = 1 << 3;
     /// Whether there is a soft wrap opportunity before the character.
     const SOFT_WRAP_OPPORTUNITY: u8 = 1 << 4;
-    /// kun: whether the source character is a soft hyphen (U+00AD), whose line-breaking
+    /// machopo: whether the source character is a soft hyphen (U+00AD), whose line-breaking
     /// opportunity (after it) a line breaker may take only with a hyphen, or not at all.
     const SOFT_HYPHEN: u8 = 1 << 5;
 
@@ -343,7 +343,7 @@ impl CharacterFlags {
         self.0 & Self::EMOJI != 0
     }
 
-    /// kun: returns if the character is a soft hyphen (U+00AD).
+    /// machopo: returns if the character is a soft hyphen (U+00AD).
     #[inline(always)]
     pub fn is_soft_hyphen(self) -> bool {
         self.0 & Self::SOFT_HYPHEN != 0
