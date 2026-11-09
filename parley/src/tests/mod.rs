@@ -5,5 +5,6 @@ mod test_analysis;
 mod test_builders;
 mod test_edges;
 mod test_final_break;
+mod test_font_without_em;
 mod test_style_metrics;
 mod utils;
