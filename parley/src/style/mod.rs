@@ -304,6 +304,8 @@ pub enum StyleProperty<'a, B: Brush> {
     CollapsedSpace(CollapsedSpace),
     /// machopo: where a tab reaches (CSS `tab-size`); `None` leaves it its shaped advance.
     TabStops(Option<TabStops>),
+    /// machopo: how a line may break after a soft hyphen (CSS `hyphens`).
+    SoftHyphens(SoftHyphens),
 }
 
 /// machopo: tab stops for CSS `tab-size`, in layout units before the display scale, worked out by
@@ -315,6 +317,27 @@ pub struct TabStops {
     pub interval: f32,
     /// The least a tab advances: nearer than this, it goes on to the stop after.
     pub min_advance: f32,
+}
+
+/// machopo: how a line may break after a soft hyphen (U+00AD), for CSS `hyphens`, which the
+/// embedder works out with the hyphen's advance (it draws the hyphen).
+#[derive(Copy, Clone, PartialEq, Debug, Default)]
+pub enum SoftHyphens {
+    /// A soft wrap opportunity like any other, with nothing drawn: upstream's behaviour.
+    #[default]
+    Break,
+    /// No opportunity (`hyphens: none`).
+    NoBreak,
+    /// An opportunity with a hyphen of this advance (in layout units before the display scale)
+    /// at the line's end, taken only where the hyphen fits, unless the line has no other
+    /// (`hyphens: manual` and `auto`).
+    Hyphen(f32),
+}
+
+impl<B: Brush> From<SoftHyphens> for StyleProperty<'_, B> {
+    fn from(value: SoftHyphens) -> Self {
+        StyleProperty::SoftHyphens(value)
+    }
 }
 
 impl<B: Brush> From<Option<TabStops>> for StyleProperty<'_, B> {
@@ -382,6 +405,8 @@ pub struct TextStyle<'family, 'settings, B: Brush> {
     pub collapsed_space: CollapsedSpace,
     /// machopo: where a tab reaches (CSS `tab-size`); `None` leaves it its shaped advance.
     pub tab_stops: Option<TabStops>,
+    /// machopo: how a line may break after a soft hyphen (CSS `hyphens`).
+    pub soft_hyphens: SoftHyphens,
 }
 
 impl<B: Brush> Default for TextStyle<'static, 'static, B> {
@@ -415,6 +440,7 @@ impl<B: Brush> Default for TextStyle<'static, 'static, B> {
             white_space_collapse: WhiteSpaceCollapse::default(),
             collapsed_space: CollapsedSpace::default(),
             tab_stops: None,
+            soft_hyphens: SoftHyphens::Break,
         }
     }
 }

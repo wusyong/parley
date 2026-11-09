@@ -15,7 +15,7 @@ use super::utils::{
 };
 use crate::{
     BaseDirection, BreakReason, FontContext, FontFamily, FontFeatures, FontVariations, Layout,
-    LayoutContext, LineBreak, LineHeight, OverflowWrap, RangedBuilder, StyleProperty,
+    LayoutContext, LineBreak, LineHeight, OverflowWrap, RangedBuilder, SoftHyphens, StyleProperty,
     StyleRunBuilder, TabStops, TextStyle, TextWrapMode, TreeBuilder, VerticalAlign,
     WhiteSpaceCollapse, WordBreak,
 };
@@ -243,6 +243,7 @@ fn create_root_style() -> TextStyle<'static, 'static, ColorBrush> {
             interval: 40.,
             min_advance: 3.,
         }),
+        soft_hyphens: SoftHyphens::Hyphen(5.),
     }
 }
 
@@ -286,6 +287,7 @@ fn set_root_style(rb: &mut RangedBuilder<'_, ColorBrush>) {
         interval: 40.,
         min_advance: 3.,
     })));
+    rb.push_default(StyleProperty::SoftHyphens(SoftHyphens::Hyphen(5.)));
 }
 
 /// Test that all the builders have the same default behavior.
