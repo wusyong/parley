@@ -505,6 +505,8 @@ fn build_into_layout<B: Brush>(
             text,
             layout,
             &mut lcx.style_features,
+            // machopo: the shapings kept.
+            &mut lcx.shape_cache,
         );
     }
 

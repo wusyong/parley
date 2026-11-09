@@ -2754,6 +2754,7 @@ dependencies = [
  "parley_engine",
  "peniko",
  "smallvec",
+ "write-fonts",
 ]
 
 [[package]]
@@ -4837,6 +4838,19 @@ name = "wit-bindgen"
 version = "0.57.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
+
+[[package]]
+name = "write-fonts"
+version = "0.55.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e91ad74b39f48f456560ed1ccc75959efa19bf6f0817d1560751bb49db84f6c"
+dependencies = [
+ "font-types",
+ "indexmap",
+ "kurbo",
+ "log",
+ "read-fonts 0.46.0",
+]
 
 [[package]]
 name = "writeable"

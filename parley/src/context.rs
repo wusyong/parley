@@ -45,6 +45,8 @@ pub struct LayoutContext<B: Brush = [u8; 4]> {
     /// Style index for each character, parallel to [`Analysis::char_info`].
     pub(crate) char_style_indices: Vec<u16>,
     pub(crate) scx: Shaper,
+    // machopo: shapings kept for layouts alike.
+    pub(crate) shape_cache: super::shape::ShapeCache,
 }
 
 impl<B: Brush> LayoutContext<B> {
@@ -64,7 +66,43 @@ impl<B: Brush> LayoutContext<B> {
             tree_style_builder: TreeStyleBuilder::default(),
             char_style_indices: vec![],
             scx: Shaper::default(),
+            shape_cache: super::shape::ShapeCache::default(),
         }
+    }
+
+    // machopo: how many layouts took the shaping of one alike, for tests.
+    #[doc(hidden)]
+    pub fn shapings_reused(&self) -> usize {
+        self.shape_cache.reused
+    }
+
+    // machopo: how many words were taken from those shaped before, and how many
+    // were shaped and kept, for tests.
+    #[doc(hidden)]
+    pub fn words_reused_and_shaped(&self) -> (usize, usize) {
+        self.scx.words_reused_and_shaped()
+    }
+
+    // machopo: how many times two words were shaped again as one, a space and the
+    // glyph beside it shaped together, for tests.
+    #[doc(hidden)]
+    pub fn words_joined(&self) -> usize {
+        self.scx.words_joined()
+    }
+
+    // machopo: whether text is shaped a word at a time where that gives what
+    // shaping it whole does (it is unless turned off), for tests that compare
+    // the two.
+    #[doc(hidden)]
+    pub fn set_shape_words(&mut self, on: bool) {
+        self.scx.set_shape_words(on);
+    }
+
+    // machopo: forgets the shapings kept, as fonts were added to the font
+    // context: font selection may pick others.
+    #[doc(hidden)]
+    pub fn clear_shapings(&mut self) {
+        self.shape_cache.clear(&mut self.scx);
     }
 
     fn resolve_style_set(

@@ -4,6 +4,10 @@
 //! Text shaping implementation using `harfrust`for shaping
 //! and `icu` for text analysis.
 
+// machopo: shapings kept for layouts alike.
+mod cache;
+pub(crate) use cache::ShapeCache;
+
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use parley_engine::shape::{CharCluster, Coverage};
@@ -53,6 +57,8 @@ pub(crate) fn shape_text<'a, B: Brush>(
     text: &str,
     layout: &mut Layout<B>,
     style_features: &'a mut Vec<SmallVec<[FontFeature; 8]>>,
+    // machopo: the shapings kept (`cache`).
+    cache: &mut ShapeCache,
 ) {
     let scale = layout.data.scale;
 
@@ -66,12 +72,6 @@ pub(crate) fn shape_text<'a, B: Brush>(
     }
 
     let mut fq = fcx.collection.query(&mut fcx.source_cache);
-
-    let mut out_of_flow_box_iter = inline_boxes
-        .iter()
-        .filter(|b| !b.is_inline_object())
-        .map(|b| &b.inline_box)
-        .peekable();
 
     // Merge font features with letter-spacing ligature suppression.
     //
@@ -96,7 +96,15 @@ pub(crate) fn shape_text<'a, B: Brush>(
     let style_features = &*style_features;
 
     // Split when shaping-relevant style properties change and at out-of-flow boxes.
-    let items = {
+    //
+    // machopo: made again for each time the text is shaped.
+    let items = || {
+        let mut out_of_flow_box_iter = inline_boxes
+            .iter()
+            .filter(|b| !b.is_inline_object())
+            .map(|b| &b.inline_box)
+            .peekable();
+
         // TODO: we currently walk characters here, but we could instead just walk boundaries of
         // styles and inline boxes.
         let char_count = char_style_indices.len();
@@ -179,17 +187,97 @@ pub(crate) fn shape_text<'a, B: Brush>(
         })
     };
 
-    let font_selector = FontSelector::new(&mut fq, rcx, styles);
+    // machopo: an id for what font selection takes from each style, which words
+    // shaped are kept by.
+    let font_styles = cache.font_styles(rcx, styles, scx);
 
-    scx.shape_text(
-        text,
+    // machopo: the shaping of a layout with the same text, styled the same in
+    // what changes shaping, if one was kept; each character takes this
+    // layout's style.
+    let key = cache::Key::new(
+        rcx,
+        styles,
+        inline_boxes,
         analysis,
         char_style_indices,
-        items,
-        font_selector,
-        false,
-        Arc::make_mut(&mut layout.data.shaped_text),
+        text,
+        scale,
+        cache.hasher(),
     );
+    if let Some(shaped) = cache.get(&key) {
+        // The same shaping, shared, unless its characters were styled
+        // otherwise.
+        layout.data.shaped_text = Arc::clone(shaped);
+        let styled_alike = layout
+            .data
+            .shaped_text
+            .characters()
+            .iter()
+            .map(|character| character.style_index)
+            .eq(char_style_indices.iter().copied());
+        if !styled_alike {
+            Arc::make_mut(&mut layout.data.shaped_text).set_style_indices(char_style_indices);
+        }
+        cache.reused += 1;
+        // What shaping it again, whole, gives.
+        #[cfg(debug_assertions)]
+        {
+            let mut fresh = parley_engine::ShapedText::new();
+            let font_selector = FontSelector::new(&mut fq, rcx, styles, &font_styles);
+            scx.set_shape_words(false);
+            scx.shape_text(
+                text,
+                analysis,
+                char_style_indices,
+                items(),
+                font_selector,
+                false,
+                &mut fresh,
+            );
+            scx.set_shape_words(true);
+            debug_assert!(
+                cache::same_shaping(&fresh, &layout.data.shaped_text),
+                "a kept shaping is what shaping gives"
+            );
+        }
+    } else {
+        #[cfg(debug_assertions)]
+        let words_before = (scx.words_reused_and_shaped(), scx.words_joined());
+        let font_selector = FontSelector::new(&mut fq, rcx, styles, &font_styles);
+
+        scx.shape_text(
+            text,
+            analysis,
+            char_style_indices,
+            items(),
+            font_selector,
+            false,
+            Arc::make_mut(&mut layout.data.shaped_text),
+        );
+        // machopo: what shaping the text whole gives, if words were taken or
+        // kept.
+        #[cfg(debug_assertions)]
+        if (scx.words_reused_and_shaped(), scx.words_joined()) != words_before {
+            let mut whole = parley_engine::ShapedText::new();
+            let font_selector = FontSelector::new(&mut fq, rcx, styles, &font_styles);
+            scx.set_shape_words(false);
+            scx.shape_text(
+                text,
+                analysis,
+                char_style_indices,
+                items(),
+                font_selector,
+                false,
+                &mut whole,
+            );
+            scx.set_shape_words(true);
+            debug_assert!(
+                cache::same_shaping(&whole, &layout.data.shaped_text),
+                "a text shaped a word at a time is what shaping it whole gives"
+            );
+        }
+        cache.insert(key, Arc::clone(&layout.data.shaped_text));
+    }
 
     // Out-of-flow boxes are laid out as items of their own.
     let mut out_of_flow_box_iter = inline_boxes
@@ -275,6 +363,9 @@ struct FontSelector<'a, 'b, B: Brush> {
 
     /// The font to use if [`Self::query`] doesn't return any font.
     last_resort_font: LastResortFont,
+
+    /// machopo: an id for what font selection takes from each style.
+    font_styles: &'b [u32],
 }
 
 impl<'a, 'b, B: Brush> FontSelector<'a, 'b, B> {
@@ -286,8 +377,12 @@ impl<'a, 'b, B: Brush> FontSelector<'a, 'b, B> {
         query: &'b mut Query<'a>,
         rcx: &'a ResolveContext,
         styles: &'a [ResolvedStyle<B>],
+        font_styles: &'b [u32],
     ) -> Self {
         let attrs = fontique::Attributes::default();
+        // machopo: the query may have shaped with another selector (a debug
+        // build shapes again with it), which set its attributes.
+        query.set_attributes(attrs);
 
         Self {
             query,
@@ -298,6 +393,7 @@ impl<'a, 'b, B: Brush> FontSelector<'a, 'b, B> {
             attrs,
             first_font: None,
             last_resort_font: LastResortFont::Unresolved,
+            font_styles,
         }
     }
 }
@@ -313,6 +409,10 @@ impl<'a, 'b, B: Brush> parley_engine::FontSelector for FontSelector<'a, 'b, B> {
             options.language.as_ref(),
         ));
         self.first_font = None;
+    }
+
+    fn font_style(&self, style_index: u16) -> Option<u32> {
+        self.font_styles.get(usize::from(style_index)).copied()
     }
 
     fn select_font(
