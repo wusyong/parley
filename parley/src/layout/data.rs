@@ -9,7 +9,8 @@ use crate::layout::{ContentWidths, LineMetrics, Style};
 use crate::resolve::ResolvedStyle;
 use crate::style::Brush;
 use crate::{
-    IndentOptions, InlineBoxKind, LineHeight, OverflowWrap, TextWrapMode, WhiteSpaceCollapse,
+    IndentOptions, InlineBoxKind, LineHeight, OverflowWrap, SoftHyphens, TextWrapMode,
+    WhiteSpaceCollapse,
 };
 use core::ops::Range;
 
@@ -510,6 +511,10 @@ struct ContentWidthsMeasurer {
     /// Indents for lines following a soft/hard wrap.
     soft_indent: f32,
     hard_indent: f32,
+
+    /// machopo: how a line may break at the next opportunity, as in the line breaker: the last
+    /// atom's style's [`SoftHyphens`] if it is a soft hyphen, otherwise `Break`.
+    soft_hyphen: SoftHyphens,
 }
 
 impl ContentWidthsMeasurer {
@@ -528,6 +533,7 @@ impl ContentWidthsMeasurer {
             soft_indent: indent_options.indent_following_soft_wrap_break(indent_amount),
             hard_indent: indent_options.indent_following_forced_line_break(indent_amount),
             line_has_content: false,
+            soft_hyphen: SoftHyphens::Break,
         }
     }
 
@@ -546,6 +552,23 @@ impl ContentWidthsMeasurer {
             .min_width
             .max(self.running_min_width - self.running_hanging_whitespace);
         self.running_min_width = self.soft_indent;
+    }
+
+    /// machopo: [`Self::soft_break`] at a soft wrap opportunity, after a soft hyphen as its style has
+    /// it (`soft_hyphen`): the fragment ends with the hyphen, or doesn't end.
+    #[inline(always)]
+    fn soft_break_after(&mut self, soft_hyphen: SoftHyphens, line_has_content: bool) {
+        match soft_hyphen {
+            SoftHyphens::Break => self.soft_break(line_has_content),
+            SoftHyphens::NoBreak => {}
+            SoftHyphens::Hyphen(advance) => {
+                // Only a fragment that ends here has the hyphen (see `soft_break`).
+                if line_has_content && self.running_min_width >= 0.0 {
+                    self.running_min_width += advance;
+                    self.soft_break(line_has_content);
+                }
+            }
+        }
     }
 
     /// Ends the current line at a forced break.
@@ -642,7 +665,7 @@ impl ContentWidthsMeasurer {
         // Take the following content's opportunity here, once for consecutive edges.
         if opportunity_after && !self.glue_next {
             if self.text_wrap_mode == TextWrapMode::Wrap {
-                self.soft_break(self.line_has_content);
+                self.soft_break_after(self.soft_hyphen, self.line_has_content);
             }
             self.glue_next = true;
         }
@@ -692,12 +715,29 @@ impl ContentWidthsMeasurer {
                 skip_atom = false;
                 let prev_text_wrap_mode = self.text_wrap_mode;
                 self.text_wrap_mode = style.text_wrap_mode;
-                if prev_text_wrap_mode == TextWrapMode::Wrap
-                    && (cluster.is_soft_wrap_opportunity_before()
-                        || style.overflow_wrap == OverflowWrap::Anywhere)
-                    && !(i == 0 && glued)
-                {
-                    self.soft_break(i != empty_at);
+                // machopo: an opportunity after a soft hyphen is taken as its style has it.
+                // The ones beside an inline object are its own.
+                let soft_hyphen = core::mem::replace(
+                    &mut self.soft_hyphen,
+                    if cluster.is_soft_hyphen() {
+                        style.soft_hyphens
+                    } else {
+                        SoftHyphens::Break
+                    },
+                );
+                let soft_hyphen = if cluster.is_inline_object() {
+                    SoftHyphens::Break
+                } else {
+                    soft_hyphen
+                };
+                if prev_text_wrap_mode == TextWrapMode::Wrap && !(i == 0 && glued) {
+                    if cluster.is_soft_wrap_opportunity_before()
+                        && soft_hyphen != SoftHyphens::NoBreak
+                    {
+                        self.soft_break_after(soft_hyphen, i != empty_at);
+                    } else if style.overflow_wrap == OverflowWrap::Anywhere {
+                        self.soft_break(i != empty_at);
+                    }
                 }
                 // `Whitespace::Newline` are forced breaks. Note newlines have no advance.
                 if whitespace == Whitespace::Newline {

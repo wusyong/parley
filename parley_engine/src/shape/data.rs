@@ -56,6 +56,8 @@ impl ShapedClusterFlags {
     const SAFE_TO_CONCAT_BEFORE: u32 = 1 << 16;
     /// Whether the cluster's first character is default ignorable.
     const DEFAULT_IGNORABLE: u32 = 1 << 17;
+    /// machopo: whether the cluster's first character is a soft hyphen (U+00AD).
+    const SOFT_HYPHEN: u32 = 1 << 18;
 
     #[inline(always)]
     pub(crate) const fn new(glyph_len: u8) -> Self {
@@ -117,9 +119,21 @@ impl ShapedClusterFlags {
         self
     }
 
+    /// machopo: see [`Self::SOFT_HYPHEN`].
+    #[inline(always)]
+    pub(crate) const fn with_soft_hyphen(mut self, set: bool) -> Self {
+        self.0 = self.0 & !Self::SOFT_HYPHEN | if set { Self::SOFT_HYPHEN } else { 0 };
+        self
+    }
+
     #[inline(always)]
     const fn is_soft_wrap_opportunity_before(self) -> bool {
         self.0 & Self::SOFT_WRAP_BEFORE != 0
+    }
+
+    #[inline(always)]
+    const fn is_soft_hyphen(self) -> bool {
+        self.0 & Self::SOFT_HYPHEN != 0
     }
 
     #[inline(always)]
@@ -269,6 +283,13 @@ impl ShapedCluster {
         self.flags.is_soft_wrap_opportunity_before()
     }
 
+    /// machopo: whether this cluster's first character is a soft hyphen (U+00AD), cached like
+    /// [`Self::is_soft_wrap_opportunity_before`].
+    #[inline(always)]
+    pub fn is_soft_hyphen(self) -> bool {
+        self.flags.is_soft_hyphen()
+    }
+
     /// The [`Whitespace`] class of this cluster's first character.
     ///
     /// Cached here so that measuring text does not need to read the character array.
@@ -337,6 +358,9 @@ impl CharacterFlags {
     const INLINE_OBJECT: u8 = 1 << 5;
     /// Whether the character has the `Default_Ignorable_Code_Point` unicode property.
     const DEFAULT_IGNORABLE: u8 = 1 << 6;
+    /// machopo: whether the source character is a soft hyphen (U+00AD), whose line-breaking
+    /// opportunity (after it) a line breaker may take only with a hyphen, or not at all.
+    const SOFT_HYPHEN: u8 = 1 << 7;
 
     #[inline(always)]
     pub(crate) fn new(
@@ -367,6 +391,11 @@ impl CharacterFlags {
                 }
                 | if is_default_ignorable {
                     Self::DEFAULT_IGNORABLE
+                } else {
+                    0
+                }
+                | if source_char == '\u{AD}' {
+                    Self::SOFT_HYPHEN
                 } else {
                     0
                 },
@@ -404,6 +433,12 @@ impl CharacterFlags {
     #[inline(always)]
     pub fn is_default_ignorable(self) -> bool {
         self.0 & Self::DEFAULT_IGNORABLE != 0
+    }
+
+    /// machopo: returns if the character is a soft hyphen (U+00AD).
+    #[inline(always)]
+    pub fn is_soft_hyphen(self) -> bool {
+        self.0 & Self::SOFT_HYPHEN != 0
     }
 
     /// Returns these flags, marking whether the character stands in for an inline object.
@@ -453,6 +488,7 @@ mod tests {
             ('\u{2028}', 3, false),
             ('\u{2600}', 3, true),
             ('\u{1F600}', 4, true),
+            ('\u{AD}', 2, false),
         ] {
             for bits in 0..8_u8 {
                 let is_word_boundary = bits & 1 != 0;
@@ -466,6 +502,7 @@ mod tests {
                 );
                 assert_eq!(flags.len_utf8(), len, "{ch:?}");
                 assert_eq!(flags.is_emoji(), emoji, "{ch:?}");
+                assert_eq!(flags.is_soft_hyphen(), ch == '\u{AD}', "{ch:?}");
                 assert_eq!(flags.is_word_boundary(), is_word_boundary, "{ch:?}");
                 assert_eq!(
                     flags.is_soft_wrap_opportunity(),
@@ -504,8 +541,10 @@ mod tests {
                 for default_ignorable in [false, true] {
                     let flags = ShapedClusterFlags::new(3)
                         .with_grapheme_start(true)
-                        .with_first_char(soft_wrap, whitespace, default_ignorable);
+                        .with_first_char(soft_wrap, whitespace, default_ignorable)
+                        .with_soft_hyphen(!soft_wrap);
                     assert_eq!(flags.is_soft_wrap_opportunity_before(), soft_wrap);
+                    assert_eq!(flags.is_soft_hyphen(), !soft_wrap);
                     assert_eq!(flags.whitespace(), whitespace);
                     assert_eq!(flags.is_default_ignorable(), default_ignorable);
                     assert_eq!(flags.glyph_len(), 3);

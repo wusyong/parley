@@ -17,7 +17,7 @@ use super::style::{
 use crate::font::FontContext;
 use crate::style::TextStyle;
 use crate::util::nearly_eq;
-use crate::{CollapsedSpace, TabStops, TextWrapMode, WhiteSpaceCollapse, WordBreak};
+use crate::{CollapsedSpace, SoftHyphens, TabStops, TextWrapMode, WhiteSpaceCollapse, WordBreak};
 use crate::{LineBreak, LineHeight, OverflowWrap, VerticalAlign, layout};
 use core::borrow::Borrow;
 use core::ops::Range;
@@ -172,6 +172,7 @@ impl ResolveContext {
             StyleProperty::CollapsedSpace(value) => CollapsedSpace(*value),
             StyleProperty::TabStops(value) => TabStops(scale_tab_stops(*value, scale)),
             StyleProperty::OpticalSizing(value) => OpticalSizing(*value),
+            StyleProperty::SoftHyphens(value) => SoftHyphens(scale_soft_hyphens(*value, scale)),
         }
     }
 
@@ -216,6 +217,7 @@ impl ResolveContext {
             collapsed_space: raw_style.collapsed_space,
             tab_stops: scale_tab_stops(raw_style.tab_stops, scale),
             optical_sizing: raw_style.optical_sizing,
+            soft_hyphens: scale_soft_hyphens(raw_style.soft_hyphens, scale),
         }
     }
 
@@ -412,6 +414,16 @@ pub(crate) enum ResolvedProperty<B: Brush> {
     TabStops(Option<TabStops>),
     /// machopo: CSS `font-optical-sizing: auto`.
     OpticalSizing(bool),
+    /// machopo: how a line may break after a soft hyphen.
+    SoftHyphens(SoftHyphens),
+}
+
+/// machopo: a soft hyphen's hyphen scaled as the other lengths are.
+fn scale_soft_hyphens(value: SoftHyphens, scale: f32) -> SoftHyphens {
+    match value {
+        SoftHyphens::Hyphen(advance) => SoftHyphens::Hyphen(advance * scale),
+        value => value,
+    }
 }
 
 /// machopo: tab stops scaled as the other lengths are.
@@ -474,6 +486,8 @@ pub(crate) struct ResolvedStyle<B: Brush> {
     pub(crate) tab_stops: Option<TabStops>,
     /// machopo: CSS `font-optical-sizing: auto`.
     pub(crate) optical_sizing: bool,
+    /// machopo: how a line may break after a soft hyphen.
+    pub(crate) soft_hyphens: SoftHyphens,
 }
 
 impl<B: Brush> ResolvedStyle<B> {
@@ -510,6 +524,7 @@ impl<B: Brush> ResolvedStyle<B> {
             CollapsedSpace(value) => self.collapsed_space = value,
             TabStops(value) => self.tab_stops = value,
             OpticalSizing(value) => self.optical_sizing = value,
+            SoftHyphens(value) => self.soft_hyphens = value,
         }
     }
 
@@ -545,6 +560,7 @@ impl<B: Brush> ResolvedStyle<B> {
             CollapsedSpace(value) => self.collapsed_space == *value,
             TabStops(value) => self.tab_stops == *value,
             OpticalSizing(value) => self.optical_sizing == *value,
+            SoftHyphens(value) => self.soft_hyphens == *value,
         }
     }
 
@@ -560,6 +576,7 @@ impl<B: Brush> ResolvedStyle<B> {
             text_wrap_mode: self.text_wrap_mode,
             white_space_collapse: self.white_space_collapse,
             tab_stops: self.tab_stops,
+            soft_hyphens: self.soft_hyphens,
             locale: self.locale,
         }
     }

@@ -69,6 +69,8 @@ pub struct Style<B: Brush> {
     pub(crate) white_space_collapse: WhiteSpaceCollapse,
     /// machopo: where a tab reaches (CSS `tab-size`); `None` leaves it its shaped advance.
     pub(crate) tab_stops: Option<crate::TabStops>,
+    /// machopo: how a line may break after a soft hyphen (CSS `hyphens`).
+    pub(crate) soft_hyphens: crate::SoftHyphens,
     /// The locale of the text, if any.
     ///
     /// This is useful for consumers exposing the text to assistive technologies,
