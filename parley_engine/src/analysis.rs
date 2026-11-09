@@ -26,6 +26,7 @@ use parley_data::Properties;
 
 use crate::bidi;
 use crate::break_overrides::LineBreakContext;
+use crate::line_table;
 use crate::{AnalysisOptions, Analyzer, LineBreakConfig};
 
 /// The result of [`Analyzer::analyze`].
@@ -255,6 +256,15 @@ impl<'a> AnalysisDataSources<'a> {
     fn brackets(&self) -> CodePointMapDataBorrowed<'_, BidiMirroringGlyph> {
         const { CodePointMapData::new() }
     }
+}
+
+// machopo: the line segmenter for the default configuration, which the line
+// break table gives what of, for its tests.
+#[cfg(test)]
+pub(crate) fn default_line_segmenter() -> LineSegmenterBorrowed<'static> {
+    line_segmenter_impl(AnalysisDataSources::line_break_options(
+        SegmenterKey::DEFAULT,
+    ))
 }
 
 #[cfg(feature = "complex-scripts")]
@@ -691,6 +701,23 @@ pub(crate) fn analyze_text(
         let segmenter = line_segmenter.as_borrowed();
         // Fast path for text with a single segmenter configuration.
         if substring_index == 0 && last {
+            // machopo: the default configuration's opportunities looked up in a
+            // table, where it can decide them.
+            if segmenter_key == SegmenterKey::DEFAULT {
+                analyzer.texts_looked_up += 1;
+                analyzer.words_given +=
+                    line_table::line_breaks(substring, segmenter, line_boundary_positions);
+                debug_assert_eq!(
+                    *line_boundary_positions,
+                    segmenter
+                        .segment_str(substring)
+                        .filter(|&position| position != 0 && position != substring.len())
+                        .collect::<Vec<_>>(),
+                    "the table gives what ICU4X gives for {substring:?}"
+                );
+                break;
+            }
+
             let mut lb_iter = segmenter.segment_str(substring);
 
             let _first = lb_iter.next();
@@ -742,9 +769,10 @@ pub(crate) fn analyze_text(
     }
 
     // Collect boundary byte positions compactly
-    let word_segmenter = data_sources.word_segmenter();
-    let word_segmenter = word_segmenter.as_borrowed();
-    let mut wb_iter = word_segmenter.segment_str(text).peekable();
+    // machopo: none when word boundaries are left out.
+    let word_segmenter = (!options.skip_word_boundaries).then(|| data_sources.word_segmenter());
+    let word_segmenter = word_segmenter.as_ref().map(WordSegmenter::as_borrowed);
+    let mut wb_iter = word_segmenter.map(|segmenter| segmenter.segment_str(text).peekable());
     let mut gb_iter = data_sources
         .grapheme_segmenter()
         .segment_str(text)
@@ -768,9 +796,9 @@ pub(crate) fn analyze_text(
         .peekable();
     let boundary_iter = text.char_indices().map(|(byte_pos, ch)| {
         // advance any stale word boundary positions
-        while let Some(&w) = wb_iter.peek() {
+        while let Some(&w) = wb_iter.as_mut().and_then(|wb_iter| wb_iter.peek()) {
             if w < byte_pos {
-                _ = wb_iter.next();
+                _ = wb_iter.as_mut().and_then(Iterator::next);
             } else {
                 break;
             }
@@ -793,11 +821,11 @@ pub(crate) fn analyze_text(
         }
 
         let mut is_word = false;
-        if let Some(&w) = wb_iter.peek()
+        if let Some(&w) = wb_iter.as_mut().and_then(|wb_iter| wb_iter.peek())
             && w == byte_pos
         {
             is_word = true;
-            _ = wb_iter.next();
+            _ = wb_iter.as_mut().and_then(Iterator::next);
         }
         let mut is_grapheme_start = false;
         if let Some(&g) = gb_iter.peek()
@@ -811,6 +839,7 @@ pub(crate) fn analyze_text(
         // For characters requiring a dictionary for deciding word boundaries, apply
         // UAX #29 Rule WB999 in case there's no dictionary (because ICU4X does not).
         if !is_word
+            && !options.skip_word_boundaries
             && is_grapheme_start
             && properties.needs_dictionary_word_break()
             && !data_sources.has_word_dictionary(properties.script())

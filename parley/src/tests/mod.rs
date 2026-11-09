@@ -6,6 +6,7 @@ mod test_builders;
 mod test_edges;
 mod test_final_break;
 mod test_font_without_em;
+mod test_line_break_table;
 mod test_shape_cache;
 mod test_shape_words;
 mod test_shape_words_space;
