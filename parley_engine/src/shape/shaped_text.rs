@@ -197,6 +197,18 @@ impl ShapedText {
         self.has_safe_to_concat_flags
     }
 
+    /// machopo: gives the shaped cluster at `cluster_index` the advance `advance`, its glyphs together
+    /// (the first one takes up the difference): a tab's, which a line breaker works out from where
+    /// the tab is on its line.
+    pub fn set_cluster_advance(&mut self, cluster_index: u32, advance: f32) {
+        let cluster = &mut self.shaped_clusters[cluster_index as usize];
+        let difference = advance - cluster.advance;
+        cluster.advance = advance;
+        if !cluster.has_inline_glyph() && cluster.glyph_len() > 0 {
+            self.glyphs[cluster.glyph_offset as usize].advance += difference;
+        }
+    }
+
     /// Get a [`ShapedSlice`] of the run at `run_index`.
     pub fn run_slice(&self, run_index: u32) -> ShapedSlice<'_> {
         let run = &self.runs[run_index as usize];
