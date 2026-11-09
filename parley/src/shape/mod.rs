@@ -4,6 +4,7 @@
 //! Text shaping implementation using `harfrust`for shaping
 //! and `icu` for text analysis.
 
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use parley_engine::shape::{CharCluster, Coverage};
 use parley_engine::{Analysis, FontInstance, FontInstanceRef, ShapeOptions, Shaper};
@@ -187,7 +188,7 @@ pub(crate) fn shape_text<'a, B: Brush>(
         items,
         font_selector,
         false,
-        &mut layout.data.shaped_text,
+        Arc::make_mut(&mut layout.data.shaped_text),
     );
 
     // Out-of-flow boxes are laid out as items of their own.

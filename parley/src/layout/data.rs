@@ -14,6 +14,7 @@ use crate::{
 };
 use core::ops::Range;
 
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use parlance::BidiLevel;
 use parley_engine::shape::Whitespace;
@@ -207,7 +208,10 @@ pub(crate) struct LayoutData<B: Brush> {
     pub(crate) inline_boxes: Vec<LayoutInlineBox>,
 
     // Output of shaping (input to line breaking)
-    pub(crate) shaped_text: ShapedText,
+    // machopo: shared with the shaping cache and with what the embedder keeps of
+    // the layout (`Layout::shaped_text`); changed only where no one else
+    // holds it (`Arc::make_mut`).
+    pub(crate) shaped_text: Arc<ShapedText>,
     pub(crate) runs: Vec<RunData>,
     pub(crate) items: Vec<LayoutItem>,
 
@@ -259,7 +263,7 @@ impl<B: Brush> Default for LayoutData<B> {
             styles: Vec::new(),
             style_metrics: Vec::new(),
             inline_boxes: Vec::new(),
-            shaped_text: ShapedText::new(),
+            shaped_text: Arc::default(),
             runs: Vec::new(),
             items: Vec::new(),
             lines: Vec::new(),
@@ -292,7 +296,11 @@ impl<B: Brush> LayoutData<B> {
         self.styles.clear();
         self.style_metrics.clear();
         self.inline_boxes.clear();
-        self.shaped_text.clear();
+        // machopo: one held elsewhere stays as it is.
+        match Arc::get_mut(&mut self.shaped_text) {
+            Some(shaped_text) => shaped_text.clear(),
+            None => self.shaped_text = Arc::default(),
+        }
         self.runs.clear();
         self.items.clear();
         self.lines.clear();
@@ -319,8 +327,11 @@ impl<B: Brush> LayoutData<B> {
         )
         .baseline_offset;
         if let Some(cluster) = layout_box.inline_object_cluster {
-            self.shaped_text
-                .set_inline_object_advance(cluster, layout_box.inline_box.width);
+            let width = layout_box.inline_box.width;
+            // machopo: a copy, if the shaped text is held elsewhere and the advance is another.
+            if self.shaped_text.shaped_clusters()[cluster as usize].advance != width {
+                Arc::make_mut(&mut self.shaped_text).set_inline_object_advance(cluster, width);
+            }
         }
     }
 
