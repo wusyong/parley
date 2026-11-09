@@ -12,7 +12,7 @@ use parlance::BidiLevel;
 
 use crate::inline_box::{LayoutInlineBox, inline_object_box_index};
 use crate::layout::data::{AlignedSubtreeOffset, run_box_metrics};
-use crate::layout::spacing::{EffectiveSpacing, Justification, is_word_separator};
+use crate::layout::spacing::{EffectiveSpacing, Justification, is_word_separator, tab_advance};
 use crate::layout::style_metrics::{BoxMetrics, StyleMetrics, inline_box_placement};
 use crate::layout::whitespace::atom_hanging_advance;
 use crate::layout::{
@@ -1239,8 +1239,30 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                         }
                     }
 
+                    // machopo: a tab whose advance isn't the one to the next tab stop from where it is
+                    // on the line: the advance it needs, which is set before the run is taken
+                    // again from it.
+                    let mut retab = None;
+
                     // Iterate over the remaining atoms in the Run
                     for atom in slice.atoms_from(self.state.cluster_idx) {
+                        let character = &atom.characters()[0];
+                        if character.whitespace == Whitespace::Tab
+                            && let Some(stops) =
+                                self.layout.data.styles[character.style_index as usize].tab_stops
+                        {
+                            // From the start edge of the line box's container: past the floats
+                            // beside the line and the indent.
+                            let position = self.state.line_x + line_indent + self.state.line.x;
+                            let wanted = tab_advance(stops, run.data.spacing, position);
+                            let advance = spacing.atom_advance(&atom);
+                            if (advance - wanted).abs() > 1e-3 {
+                                let cluster = atom.shaped_clusters_range().start;
+                                let shaped = atom.shaped_clusters()[0].advance;
+                                retab = Some((cluster, shaped + wanted - advance));
+                                break;
+                            }
+                        }
                         // machopo: whether this atom's opportunity was taken before a start edge.
                         let glued = core::mem::take(&mut self.state.line.glue_next);
                         // Retrieve metadata about the atom
@@ -1390,6 +1412,13 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                                 );
                             }
                         }
+                    }
+                    if let Some((cluster, advance)) = retab {
+                        self.layout
+                            .data
+                            .shaped_text
+                            .set_cluster_advance(cluster, advance);
+                        continue;
                     }
                     self.state.run_idx += 1;
                     self.state.item_idx += 1;

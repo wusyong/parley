@@ -16,8 +16,8 @@ use super::utils::{
 use crate::{
     BaseDirection, BreakReason, FontContext, FontFamily, FontFeatures, FontVariations, Layout,
     LayoutContext, LineBreak, LineHeight, OverflowWrap, RangedBuilder, StyleProperty,
-    StyleRunBuilder, TextStyle, TextWrapMode, TreeBuilder, VerticalAlign, WhiteSpaceCollapse,
-    WordBreak,
+    StyleRunBuilder, TabStops, TextStyle, TextWrapMode, TreeBuilder, VerticalAlign,
+    WhiteSpaceCollapse, WordBreak,
 };
 
 /// Set of options for [`build_layout_with_ranged`].
@@ -238,6 +238,11 @@ fn create_root_style() -> TextStyle<'static, 'static, ColorBrush> {
         white_space_collapse: WhiteSpaceCollapse::PreserveBreaks,
         // Only affects the `TreeBuilder`, which collapses white space.
         collapsed_space: crate::CollapsedSpace::Space,
+        // machopo
+        tab_stops: Some(TabStops {
+            interval: 40.,
+            min_advance: 3.,
+        }),
     }
 }
 
@@ -276,6 +281,11 @@ fn set_root_style(rb: &mut RangedBuilder<'_, ColorBrush>) {
     rb.push_default(StyleProperty::WhiteSpaceCollapse(
         WhiteSpaceCollapse::PreserveBreaks,
     ));
+    // machopo
+    rb.push_default(StyleProperty::TabStops(Some(TabStops {
+        interval: 40.,
+        min_advance: 3.,
+    })));
 }
 
 /// Test that all the builders have the same default behavior.
