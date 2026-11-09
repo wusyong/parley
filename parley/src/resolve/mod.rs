@@ -171,6 +171,7 @@ impl ResolveContext {
             StyleProperty::WhiteSpaceCollapse(value) => WhiteSpaceCollapse(*value),
             StyleProperty::CollapsedSpace(value) => CollapsedSpace(*value),
             StyleProperty::TabStops(value) => TabStops(scale_tab_stops(*value, scale)),
+            StyleProperty::OpticalSizing(value) => OpticalSizing(*value),
         }
     }
 
@@ -214,6 +215,7 @@ impl ResolveContext {
             white_space_collapse: raw_style.white_space_collapse,
             collapsed_space: raw_style.collapsed_space,
             tab_stops: scale_tab_stops(raw_style.tab_stops, scale),
+            optical_sizing: raw_style.optical_sizing,
         }
     }
 
@@ -408,6 +410,8 @@ pub(crate) enum ResolvedProperty<B: Brush> {
     CollapsedSpace(CollapsedSpace),
     /// machopo: where a tab reaches.
     TabStops(Option<TabStops>),
+    /// machopo: CSS `font-optical-sizing: auto`.
+    OpticalSizing(bool),
 }
 
 /// machopo: tab stops scaled as the other lengths are.
@@ -468,6 +472,8 @@ pub(crate) struct ResolvedStyle<B: Brush> {
     pub(crate) collapsed_space: CollapsedSpace,
     /// machopo: where a tab reaches.
     pub(crate) tab_stops: Option<TabStops>,
+    /// machopo: CSS `font-optical-sizing: auto`.
+    pub(crate) optical_sizing: bool,
 }
 
 impl<B: Brush> ResolvedStyle<B> {
@@ -503,6 +509,7 @@ impl<B: Brush> ResolvedStyle<B> {
             WhiteSpaceCollapse(value) => self.white_space_collapse = value,
             CollapsedSpace(value) => self.collapsed_space = value,
             TabStops(value) => self.tab_stops = value,
+            OpticalSizing(value) => self.optical_sizing = value,
         }
     }
 
@@ -537,6 +544,7 @@ impl<B: Brush> ResolvedStyle<B> {
             WhiteSpaceCollapse(value) => self.white_space_collapse == *value,
             CollapsedSpace(value) => self.collapsed_space == *value,
             TabStops(value) => self.tab_stops == *value,
+            OpticalSizing(value) => self.optical_sizing == *value,
         }
     }
 

@@ -59,6 +59,7 @@
 //!             language: None,
 //!             features: &[],
 //!             variations: &[],
+//!             optical_sizing: false,
 //!         },
 //!      }],
 //!      select_font, // Selects fonts covering each cluster.

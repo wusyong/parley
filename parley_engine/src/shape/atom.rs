@@ -1028,6 +1028,7 @@ mod tests {
                 language: None,
                 features: &[],
                 variations: &[],
+                optical_sizing: false,
             },
         }];
         shaper.shape_text(

@@ -40,6 +40,9 @@ pub struct ShapeOptions<'a> {
     pub features: &'a [FontFeature],
     /// The font variations that are constant over an item.
     pub variations: &'a [FontVariation],
+    /// machopo: CSS `font-optical-sizing: auto`: the `opsz` axis at the font size, unless the
+    /// variations set it (a font without the axis ignores it).
+    pub optical_sizing: bool,
 }
 
 /// The font instance to shape an item with.
@@ -96,6 +99,8 @@ pub struct Shaper {
     shape_plan_cache: LruCache<cache::ShapePlanId, harfrust::ShapePlan>,
     buffer: harfrust::Buffer,
     features: Vec<harfrust::Feature>,
+    /// machopo: the item's variations, with `opsz` for optical sizing.
+    variations: Vec<FontVariation>,
     char_cluster: CharCluster,
 }
 
@@ -108,6 +113,7 @@ impl Default for Shaper {
             shape_plan_cache: LruCache::new(MAX_ENTRIES),
             buffer: harfrust::Buffer::new(),
             features: Vec::new(),
+            variations: Vec::new(),
             char_cluster: CharCluster::default(),
         }
     }
@@ -294,6 +300,16 @@ fn shape_segment(
             ..,
         )
     }));
+    // machopo: optical sizing sets the `opsz` axis to the font size (CSS Fonts 4), first so that
+    // the variations' own would win; a font without the axis ignores it.
+    const OPSZ: parlance::Tag = parlance::Tag::new(b"opsz");
+    scx.variations.clear();
+    if options.optical_sizing && !options.variations.iter().any(|v| v.tag == OPSZ) {
+        scx.variations
+            .push(FontVariation::new(OPSZ, options.font_size));
+    }
+    scx.variations.extend_from_slice(options.variations);
+    let variations = &scx.variations;
 
     // Shape a run of the segment with a single font, appending it to `shaped_text`.
     let mut shape_run = |font: &FontInstance, range: TextRange| {
@@ -311,12 +327,12 @@ fn shape_segment(
                 font.font.data.id(),
                 font.font.index,
                 &font.synthesis,
-                Some(options.variations),
+                Some(variations),
             ),
             || {
                 base_font
                     .instance_builder()
-                    .variations(variations_iter(&font.synthesis, options.variations))
+                    .variations(variations_iter(&font.synthesis, variations))
                     .build()
             },
         );
