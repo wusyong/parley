@@ -274,6 +274,19 @@ impl<B: Brush> Layout<B> {
         self.data.indent_options = options;
     }
 
+    /// machopo: sets whether the line after a final forced break (a newline ending the text) is made.
+    ///
+    /// By default it is: an editor puts the caret there. CSS makes no line box after the last
+    /// forced break when nothing follows it (Blink's line breaker stops at the end of the
+    /// content), so `<div>a<br></div>` is one line tall; a text control keeps the line (Blink
+    /// adds a placeholder `<br>` to its value when it ends in a newline).
+    ///
+    /// This must be called before [`Layout::break_all_lines`] or [`Layout::break_lines`].
+    /// It is reset to `true` when the layout is [cleared](Self::clear) or built into.
+    pub fn set_line_after_final_break(&mut self, made: bool) {
+        self.data.line_after_final_break = made;
+    }
+
     /// Set the alignment for the layout.
     ///
     /// This only takes effect the next time [`Layout::break_all_lines`] or [`Layout::break_lines`] is called.
