@@ -158,6 +158,58 @@ pub struct ShapedText {
     pub(crate) has_safe_to_concat_flags: bool,
 }
 
+/// machopo: what harfrust gives for a glyph, in font units: what a word's
+/// shaping keeps.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct HarfGlyph {
+    pub(crate) id: u32,
+    /// The glyph's first character, counted from the run's first.
+    pub(crate) cluster: u32,
+    pub(crate) x_advance: i32,
+    pub(crate) x_offset: i32,
+    pub(crate) y_offset: i32,
+    /// Whether breaking the text before the glyph and shaping the sides apart
+    /// may give other glyphs.
+    pub(crate) unsafe_to_break: bool,
+    /// Whether shaping the text before the glyph apart from the text from it
+    /// on, and putting the two together, may give other glyphs (false when
+    /// harfrust wasn't asked).
+    pub(crate) unsafe_to_concat: bool,
+}
+
+impl HarfGlyph {
+    /// The glyphs in harfrust's `buffer`.
+    pub(crate) fn of_buffer(
+        buffer: &harfrust::Buffer,
+    ) -> impl DoubleEndedIterator<Item = Self> + '_ {
+        buffer
+            .glyph_infos()
+            .iter()
+            .zip(buffer.glyph_positions())
+            .map(|(info, position)| Self {
+                id: info.glyph_id,
+                cluster: info.cluster,
+                x_advance: position.x_advance,
+                x_offset: position.x_offset,
+                y_offset: position.y_offset,
+                unsafe_to_break: info.unsafe_to_break(),
+                unsafe_to_concat: info.unsafe_to_concat(),
+            })
+    }
+}
+
+/// machopo: how far a [`ShapedText`] went, to go back to.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ShapedTextMark {
+    runs: usize,
+    characters: usize,
+    shaped_clusters: usize,
+    glyphs: usize,
+    fonts: usize,
+    normalized_coords: usize,
+    features: usize,
+}
+
 impl ShapedText {
     /// Create a reusable [`ShapedText`].
     pub fn new() -> Self {
@@ -172,6 +224,31 @@ impl ShapedText {
         self.characters.reserve(additional_chars);
         self.shaped_clusters.reserve(additional_chars);
         self.glyphs.reserve(additional_chars);
+    }
+
+    /// machopo: how far this shaping went.
+    pub(crate) fn mark(&self) -> ShapedTextMark {
+        ShapedTextMark {
+            runs: self.runs.len(),
+            characters: self.characters.len(),
+            shaped_clusters: self.shaped_clusters.len(),
+            glyphs: self.glyphs.len(),
+            fonts: self.fonts.len(),
+            normalized_coords: self.normalized_coords.len(),
+            features: self.features.len(),
+        }
+    }
+
+    /// machopo: drops what was shaped after `mark` (fonts first used after it
+    /// included).
+    pub(crate) fn truncate(&mut self, mark: ShapedTextMark) {
+        self.runs.truncate(mark.runs);
+        self.characters.truncate(mark.characters);
+        self.shaped_clusters.truncate(mark.shaped_clusters);
+        self.glyphs.truncate(mark.glyphs);
+        self.fonts.truncate(mark.fonts);
+        self.normalized_coords.truncate(mark.normalized_coords);
+        self.features.truncate(mark.features);
     }
 
     /// Clear the result while retaining capacity.
@@ -266,6 +343,22 @@ impl ShapedText {
         }
     }
 
+    // machopo: for a layout that takes the shaping of another with the same
+    // text, styled otherwise in what doesn't change shaping (only its
+    // colors, say): each character takes this one's style, and each shaped
+    // cluster its first character's, as shaping gives them.
+    #[doc(hidden)]
+    pub fn set_style_indices(&mut self, style_indices: &[u16]) {
+        for (character, &style_index) in self.characters.iter_mut().zip(style_indices) {
+            character.style_index = style_index;
+        }
+        for shaped_cluster in self.shaped_clusters.iter_mut() {
+            if let Some(character) = self.characters.get(shaped_cluster.chars_range.0 as usize) {
+                shaped_cluster.style_index = character.style_index;
+            }
+        }
+    }
+
     /// The character data of the text, in logical order.
     ///
     /// [`ShapedRun::characters_range`] indexes into this. The nth [`Character`] corresponds exactly
@@ -328,7 +421,8 @@ impl ShapedText {
         char_info: &[CharInfo],
         char_style_indices: &[u16],
         font: &FontInstance,
-        glyph_buffer: &harfrust::Buffer,
+        // machopo: the glyphs harfrust gave, from its buffer or kept for words.
+        glyphs: impl DoubleEndedIterator<Item = HarfGlyph>,
         normalized_coords: &[harfrust::font::NormalizedCoord],
     ) {
         debug_assert_eq!(
@@ -336,8 +430,6 @@ impl ShapedText {
             text[range.byte_range.clone()].chars().count(),
             "The claimed character range and the text's covered byte range should agree"
         );
-
-        let glyph_infos = glyph_buffer.glyph_infos();
 
         let normalized_coords_range = {
             let start = self.normalized_coords.len();
@@ -381,7 +473,6 @@ impl ShapedText {
         // `HarfRust` returns glyphs in visual order, so we need to process them as such while
         // maintaining logical ordering of clusters.
 
-        let glyph_positions = glyph_buffer.glyph_positions();
         let scale_factor = options.font_size / units_per_em;
         let shaped_clusters_start = self.shaped_clusters.len();
 
@@ -419,8 +510,7 @@ impl ShapedText {
                 &mut self.shaped_clusters,
                 &mut self.glyphs,
                 scale_factor,
-                glyph_infos.iter(),
-                glyph_positions.iter(),
+                glyphs,
                 &self.characters,
                 characters_start,
                 self.has_safe_to_concat_flags,
@@ -430,8 +520,7 @@ impl ShapedText {
                 &mut self.shaped_clusters,
                 &mut self.glyphs,
                 scale_factor,
-                glyph_infos.iter().rev(),
-                glyph_positions.iter().rev(),
+                glyphs.rev(),
                 &self.characters,
                 characters_start,
                 self.has_safe_to_concat_flags,
@@ -510,20 +599,17 @@ pub struct ShapedRun {
 ///
 /// ## Input Parameters:
 /// * `scale_factor` - Scaling factor used to convert font units to the target size.
-/// * `glyph_infos` - `HarfRust` glyph information in logical order (i.e., reversed for RTL runs).
-/// * `glyph_positions` - `HarfRust` glyph positioning data in logical order (i.e., reversed for RTL
-///   runs).
+/// * `glyphs` - `HarfRust` glyphs in logical order (i.e., reversed for RTL runs).
 /// * `characters` must contain the shaped characters whose clusters we're now processing, starting at
 ///   index `characters_start`.
 /// * `characters_start` - See `characters`.
 /// * `produce_safe_to_concat_flags` - Whether `HarfRust` was asked to produce the unsafe-to-concat
 ///   glyph flags.
-fn process_shaped_clusters<'a>(
+fn process_shaped_clusters(
     shaped_clusters: &mut Vec<ShapedCluster>,
     glyphs: &mut Vec<Glyph>,
     scale_factor: f32,
-    glyph_infos: impl Iterator<Item = &'a harfrust::GlyphInfo>,
-    glyph_positions: impl Iterator<Item = &'a harfrust::GlyphPosition>,
+    shaped_glyphs: impl Iterator<Item = HarfGlyph>,
     characters: &[Character],
     characters_start: usize,
     produce_safe_to_concat_flags: bool,
@@ -603,13 +689,13 @@ fn process_shaped_clusters<'a>(
         safe_to_concat_before: false,
     };
 
-    for (glyph_info, glyph_pos) in glyph_infos.zip(glyph_positions) {
-        if glyph_info.cluster != cluster.id {
-            let char_end = characters_start + glyph_info.cluster as usize;
+    for shaped_glyph in shaped_glyphs {
+        if shaped_glyph.cluster != cluster.id {
+            let char_end = characters_start + shaped_glyph.cluster as usize;
             flush(&mut cluster, char_end, characters, shaped_clusters);
 
             cluster = Cluster {
-                id: glyph_info.cluster,
+                id: shaped_glyph.cluster,
                 characters_start: char_end,
                 glyphs_start: glyphs.len(),
                 glyphs: 0,
@@ -621,19 +707,19 @@ fn process_shaped_clusters<'a>(
         }
 
         if cluster.glyphs == 0 {
-            cluster.safe_to_break_before = !glyph_info.unsafe_to_break();
+            cluster.safe_to_break_before = !shaped_glyph.unsafe_to_break;
 
             // Without the flag being produced, we can't know whether it's safe to concat.
             cluster.safe_to_concat_before =
-                produce_safe_to_concat_flags && !glyph_info.unsafe_to_concat();
+                produce_safe_to_concat_flags && !shaped_glyph.unsafe_to_concat;
         }
 
         let glyph = Glyph {
-            id: glyph_info.glyph_id,
-            x: (glyph_pos.x_offset as f32) * scale_factor,
+            id: shaped_glyph.id,
+            x: (shaped_glyph.x_offset as f32) * scale_factor,
             // Convert from font space (Y-up) to layout space (Y-down)
-            y: -(glyph_pos.y_offset as f32) * scale_factor,
-            advance: (glyph_pos.x_advance as f32) * scale_factor,
+            y: -(shaped_glyph.y_offset as f32) * scale_factor,
+            advance: (shaped_glyph.x_advance as f32) * scale_factor,
         };
         if cluster.glyphs == 0 && glyph.x == 0. && glyph.y == 0. {
             // Defer this potential zero-offset, single glyph cluster

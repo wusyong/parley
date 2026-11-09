@@ -7,6 +7,7 @@ mod test_edges;
 mod test_final_break;
 mod test_font_without_em;
 mod test_optical_sizing;
+mod test_shape_cache;
 mod test_shaped_text_sharing;
 mod test_soft_hyphens;
 mod test_style_metrics;
