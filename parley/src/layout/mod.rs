@@ -19,7 +19,8 @@ mod whitespace;
 )]
 mod layout;
 
-pub use parley_engine::{FontMetrics, Glyph};
+// machopo: `ShapedText`, what `Layout::shaped_text` shares.
+pub use parley_engine::{FontMetrics, Glyph, ShapedText};
 
 pub(crate) mod data;
 
@@ -27,7 +28,9 @@ pub use alignment::{Alignment, AlignmentOptions};
 pub use cluster::{Affinity, Cluster, ClusterPath, ClusterSide};
 pub use data::BreakReason;
 pub use layout::Layout;
-pub use line::{GlyphRun, Line, LineMetrics, PositionedInlineBox, PositionedLayoutItem};
+pub use line::{
+    GlyphRun, GlyphSpan, Line, LineMetrics, PositionedInlineBox, PositionedLayoutItem, SpanCluster,
+};
 pub use line_break::{
     BoxBreakData, BreakLines, BreakerState, LineBreakData, MaxHeightBreakData, YieldData,
 };
