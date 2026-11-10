@@ -250,6 +250,12 @@ impl VerticalAlign {
 pub enum StyleProperty<'a, B: Brush> {
     /// CSS `font-family` property value.
     FontFamily(FontFamily<'a>),
+    /// machopo: the font families of a `font-family` value the caller has already looked up
+    /// in the font collection, in order of preference. It sets the same thing
+    /// [`FontFamily`](Self::FontFamily) does without looking any name up, for callers that
+    /// keep what a value resolved to; the ids have to be of the collection the layout is
+    /// built with.
+    FontFamilyIds(Cow<'a, [fontique::FamilyId]>),
     /// Font size.
     FontSize(f32),
     /// Font width.

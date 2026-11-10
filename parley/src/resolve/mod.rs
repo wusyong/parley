@@ -142,6 +142,8 @@ impl ResolveContext {
         use ResolvedProperty::*;
         match property {
             StyleProperty::FontFamily(value) => FontFamily(self.resolve_font_family(fcx, value)),
+            // machopo: families already looked up.
+            StyleProperty::FontFamilyIds(ids) => FontFamily(self.families.insert(ids)),
             StyleProperty::FontSize(value) => FontSize(*value * scale),
             StyleProperty::FontWidth(value) => FontWidth(*value),
             StyleProperty::FontStyle(value) => FontStyle(*value),
