@@ -20,7 +20,8 @@ pub struct InlineBox {
     /// Any U+FFFC character in the text without a corresponding in-flow box, is treated as ordinary
     /// text (some fonts may render .notdef, others may have a glyph for it).
     ///
-    /// Out-of-flow boxes can be placed at any character boundary.
+    /// Out-of-flow boxes and [edges](InlineBoxKind::StartEdge) can be placed at any character
+    /// boundary.
     ///
     /// When using the [`TreeBuilder`](crate::TreeBuilder), this offset is set by the builder.
     pub index: usize,
@@ -113,4 +114,29 @@ pub enum InlineBoxKind {
     ///
     /// They can be used to implement advanced layout modes such as CSS's `float`
     CustomOutOfFlow,
+    // machopo: the edges of non-atomic inline boxes.
+    /// The start edge of a non-atomic inline box (a CSS `display: inline` element): its start
+    /// margin, border and padding, as [`InlineBox::width`].
+    ///
+    /// Unlike an [`InFlow`](Self::InFlow) box, an edge is not a character of the text: it sits at
+    /// a character boundary, like an out-of-flow box, so the text on its two sides is analyzed as
+    /// if the edge weren't there. It takes up its width, but adds nothing to the line's height:
+    /// the inline's height comes from its content (CSS 2 § 10.8), and its vertical padding and
+    /// border don't change the line.
+    ///
+    /// An edge has no soft wrap opportunity of its own. A start edge stays on the line of the
+    /// content after it: an opportunity right before that content is taken before the edge
+    /// instead. Consecutive edges (an empty span, or nested span starts) stay together with that
+    /// content too.
+    StartEdge,
+    /// The end edge of a non-atomic inline box, see [`StartEdge`](Self::StartEdge). It stays on
+    /// the line of the content before it.
+    EndEdge,
+}
+
+impl InlineBoxKind {
+    /// Whether this is the edge of a non-atomic inline box, which takes up its width on the line.
+    pub(crate) fn is_edge(self) -> bool {
+        matches!(self, Self::StartEdge | Self::EndEdge)
+    }
 }

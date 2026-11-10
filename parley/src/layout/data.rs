@@ -8,7 +8,9 @@ use crate::layout::whitespace::whitespace_hangs;
 use crate::layout::{ContentWidths, LineMetrics, Style};
 use crate::resolve::ResolvedStyle;
 use crate::style::Brush;
-use crate::{IndentOptions, LineHeight, OverflowWrap, TextWrapMode, WhiteSpaceCollapse};
+use crate::{
+    IndentOptions, InlineBoxKind, LineHeight, OverflowWrap, TextWrapMode, WhiteSpaceCollapse,
+};
 use core::ops::Range;
 
 use alloc::vec::Vec;
@@ -316,6 +318,47 @@ impl<B: Brush> LayoutData<B> {
         }
     }
 
+    // machopo: the edges of non-atomic inline boxes.
+    /// The width inline box `index` takes up on its line as an item of its own: that of an
+    /// [edge](InlineBoxKind::StartEdge), and none for an out-of-flow box.
+    pub(crate) fn edge_width(&self, index: usize) -> f32 {
+        let inline_box = &self.inline_boxes[index].inline_box;
+        if inline_box.kind.is_edge() {
+            inline_box.width
+        } else {
+            0.0
+        }
+    }
+
+    // machopo: the edges of non-atomic inline boxes.
+    /// Whether there is a soft wrap opportunity right before the content that follows the
+    /// [start edge](InlineBoxKind::StartEdge) at `item_idx`: before the first atom of the next
+    /// text run (which may be an inline object). The edges and out-of-flow boxes in between sit
+    /// at the same position, so they are skipped.
+    pub(crate) fn soft_wrap_opportunity_after_box(&self, item_idx: usize) -> bool {
+        for item in &self.items[item_idx + 1..] {
+            match item.kind {
+                LayoutItemKind::TextRun => {
+                    return self
+                        .shaped_text
+                        .run_slice(item.index as u32)
+                        .shaped_clusters()
+                        .first()
+                        .is_some_and(|cluster| cluster.is_soft_wrap_opportunity_before());
+                }
+                LayoutItemKind::OutOfFlowBox => {
+                    // The caller of the line breaker places these, possibly on another line.
+                    if self.inline_boxes[item.index].inline_box.kind
+                        == InlineBoxKind::CustomOutOfFlow
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+        false
+    }
+
     /// Push an out-of-flow box to the list of items
     pub(crate) fn push_out_of_flow_box(&mut self, index: usize, bidi_level: BidiLevel) {
         self.items.push(LayoutItem {
@@ -453,6 +496,12 @@ struct ContentWidthsMeasurer {
 
     text_wrap_mode: TextWrapMode,
 
+    // machopo: the edges of non-atomic inline boxes.
+    /// Set by a [start edge](InlineBoxKind::StartEdge) whose following content starts with a soft
+    /// wrap opportunity: that opportunity was taken before the edge, so the content's own is
+    /// skipped.
+    glue_next: bool,
+
     /// Indents for lines following a soft/hard wrap.
     soft_indent: f32,
     hard_indent: f32,
@@ -470,6 +519,7 @@ impl ContentWidthsMeasurer {
             running_hanging_whitespace: 0.,
             hangs_conditionally: false,
             text_wrap_mode: TextWrapMode::Wrap,
+            glue_next: false,
             soft_indent: indent_options.indent_following_soft_wrap_break(indent_amount),
             hard_indent: indent_options.indent_following_forced_line_break(indent_amount),
             line_has_content: false,
@@ -516,7 +566,7 @@ impl ContentWidthsMeasurer {
 
     #[inline(always)]
     fn measure<B: Brush>(mut self, layout_data: &LayoutData<B>) -> ContentWidths {
-        for item in &layout_data.items {
+        for (item_idx, item) in layout_data.items.iter().enumerate() {
             match item.kind {
                 LayoutItemKind::TextRun => {
                     let slice = layout_data.shaped_text.run_slice(item.index as u32);
@@ -547,7 +597,15 @@ impl ContentWidthsMeasurer {
                     }
                 }
                 // Out-of-flow boxes take up no space.
-                LayoutItemKind::OutOfFlowBox => {}
+                LayoutItemKind::OutOfFlowBox => {
+                    // machopo: the edges of non-atomic inline boxes take up their width.
+                    let inline_box = &layout_data.inline_boxes[item.index].inline_box;
+                    if inline_box.kind.is_edge() {
+                        let opportunity_after = inline_box.kind == InlineBoxKind::StartEdge
+                            && layout_data.soft_wrap_opportunity_after_box(item_idx);
+                        self.measure_edge(inline_box.width, opportunity_after);
+                    }
+                }
             }
         }
 
@@ -567,6 +625,29 @@ impl ContentWidthsMeasurer {
             min: self.min_width,
             max: self.max_width,
         }
+    }
+
+    // machopo: the edges of non-atomic inline boxes.
+    /// Measures the edge of a non-atomic inline box, as the line breaker lays it out.
+    ///
+    /// `opportunity_after`: for a [start edge](InlineBoxKind::StartEdge), whether the content
+    /// after it starts with a soft wrap opportunity (see
+    /// [`LayoutData::soft_wrap_opportunity_after_box`]).
+    fn measure_edge(&mut self, width: f32, opportunity_after: bool) {
+        // Take the following content's opportunity here, once for consecutive edges.
+        if opportunity_after && !self.glue_next {
+            if self.text_wrap_mode == TextWrapMode::Wrap {
+                self.soft_break(self.line_has_content);
+            }
+            self.glue_next = true;
+        }
+        // Whitespace before an edge is not at the end of the line.
+        self.running_hanging_whitespace = 0.0;
+        self.running_min_width += width;
+        self.running_max_width += width;
+        // As in the line breaker, an edge without a width does not keep a soft wrap opportunity
+        // from being skipped at the start of a line.
+        self.line_has_content |= width != 0.0;
     }
 
     /// Measures a text run.
@@ -590,6 +671,8 @@ impl ContentWidthsMeasurer {
         is_rtl: bool,
     ) {
         let clusters = slice.shaped_clusters();
+        // machopo: the first atom's opportunity may have been taken before a start edge.
+        let glued = core::mem::take(&mut self.glue_next);
         // The cluster index at which nothing has been placed on the current line yet, if any.
         let mut empty_at = if self.line_has_content { usize::MAX } else { 0 };
 
@@ -607,6 +690,7 @@ impl ContentWidthsMeasurer {
                 if prev_text_wrap_mode == TextWrapMode::Wrap
                     && (cluster.is_soft_wrap_opportunity_before()
                         || style.overflow_wrap == OverflowWrap::Anywhere)
+                    && !(i == 0 && glued)
                 {
                     self.soft_break(i != empty_at);
                 }
