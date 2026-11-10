@@ -457,7 +457,10 @@ impl<'a, B: Brush> Iterator for GlyphRunIter<'a, B> {
                 // yielded from the runs below.
                 LineItem::OutOfFlowBox(box_index) => {
                     self.item_index += 1;
-                    return Some(self.positioned_inline_box(box_index, self.offset));
+                    let x = self.offset;
+                    // machopo: the edges of non-atomic inline boxes take up their width.
+                    self.offset += self.line.layout.data.edge_width(box_index);
+                    return Some(self.positioned_inline_box(box_index, x));
                 }
                 LineItem::Run(run) => {
                     // TODO: style indices are taken from the atom's first character, matching

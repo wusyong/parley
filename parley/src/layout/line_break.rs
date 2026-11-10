@@ -81,6 +81,13 @@ struct LineState {
     /// These are the line's justification opportunities, before subtracting those that end up in
     /// the line's hanging whitespace.
     num_word_separators: u32,
+
+    // machopo: the edges of non-atomic inline boxes.
+    /// Set by a [start edge](InlineBoxKind::StartEdge) whose following content starts with a soft
+    /// wrap opportunity: that opportunity was taken before the edge, so the content's own is not
+    /// marked again. Saved and restored with the line-breaking opportunities, like the rest of the
+    /// line state.
+    glue_next: bool,
 }
 
 impl LineState {
@@ -89,6 +96,7 @@ impl LineState {
         self.x = 0.0;
         self.box_metrics.reset();
         self.num_word_separators = 0;
+        self.glue_next = false;
     }
 }
 
@@ -1120,6 +1128,64 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                             advance: self.state.line.x,
                         }));
                     }
+
+                    // machopo: the edge of a non-atomic inline box takes up its width, and stays
+                    // with the content next to it.
+                    if inline_box.kind.is_edge() {
+                        let is_start = inline_box.kind == InlineBoxKind::StartEdge;
+                        let next_x = self.state.line.x + inline_box.width;
+                        // The opportunity next to an edge is the content's, so the mode is as the
+                        // content before it left it.
+                        let wraps = self.state.line.text_wrap_mode == TextWrapMode::Wrap;
+
+                        // A start edge takes the line-breaking opportunity of the content after
+                        // it, so a break there goes before the edge (once for consecutive edges).
+                        if is_start
+                            && !self.state.line.glue_next
+                            && self
+                                .layout
+                                .data
+                                .soft_wrap_opportunity_after_box(self.state.item_idx)
+                        {
+                            if wraps && self.state.line.x != 0.0 {
+                                self.state.mark_line_break_opportunity();
+                            }
+                            self.state.line.glue_next = true;
+                        }
+
+                        // An edge has no opportunity of its own: like text that does not fit, it
+                        // takes the last opportunity on the line, or overflows. It adds nothing
+                        // to the line's height.
+                        if next_x <= max_advance {
+                            self.state.append_inline_box_to_line(
+                                next_x,
+                                f32::NEG_INFINITY,
+                                f32::NEG_INFINITY,
+                            );
+                        } else if let Some(prev) = self.state.prev_boundary.take() {
+                            self.state.reset_to(prev);
+                            return self.start_new_line(
+                                BreakReason::Regular,
+                                max_advance,
+                                line_indent,
+                            );
+                        } else if let Some(prev_emergency) = self.state.emergency_boundary.take() {
+                            self.state.reset_to(prev_emergency);
+                            return self.start_new_line(
+                                BreakReason::Emergency,
+                                max_advance,
+                                line_indent,
+                            );
+                        } else {
+                            self.state.append_inline_box_to_line(
+                                next_x,
+                                f32::NEG_INFINITY,
+                                f32::NEG_INFINITY,
+                            );
+                        }
+                        continue;
+                    }
+
                     self.state.append_inline_box_to_line(
                         self.state.line.x,
                         f32::NEG_INFINITY,
@@ -1163,6 +1229,8 @@ impl<'a, B: Brush> BreakLines<'a, B> {
 
                     // Iterate over the remaining atoms in the Run
                     for atom in slice.atoms_from(self.state.cluster_idx) {
+                        // machopo: whether this atom's opportunity was taken before a start edge.
+                        let glued = core::mem::take(&mut self.state.line.glue_next);
                         // Retrieve metadata about the atom
                         let first_cluster = atom.shaped_clusters()[0];
                         let whitespace = first_cluster.whitespace();
@@ -1201,7 +1269,7 @@ impl<'a, B: Brush> BreakLines<'a, B> {
                         } else if is_soft_wrap_opportunity && text_wrap_mode == TextWrapMode::Wrap {
                             // We don't record boundaries when the advance is 0. As we do not want overflowing content to cause extra consecutive
                             // line breaks. We should accept the overflowing fragment in that scenario.
-                            if self.state.line.x != 0.0 {
+                            if self.state.line.x != 0.0 && !glued {
                                 self.state.mark_line_break_opportunity();
                                 // break_opportunity = true;
                             }
@@ -1350,8 +1418,10 @@ impl<'a, B: Brush> BreakLines<'a, B> {
             match item.kind {
                 LayoutItemKind::OutOfFlowBox => {
                     // Out-of-flow boxes take up no space and don't count as characters.
+                    // machopo: the edges of non-atomic inline boxes take up their width.
+                    let width = self.layout.data.edge_width(item.index);
                     self.state.append_inline_box_to_line(
-                        self.state.line.x,
+                        self.state.line.x + width,
                         f32::NEG_INFINITY,
                         f32::NEG_INFINITY,
                     );
@@ -1879,7 +1949,17 @@ fn hanging_whitespace<B: Brush>(
     'items: for line_item in line_items.iter().rev() {
         match line_item.kind {
             // Out-of-flow boxes take up no space.
-            LayoutItemKind::OutOfFlowBox => {}
+            LayoutItemKind::OutOfFlowBox => {
+                // machopo: whitespace before the edge of a non-atomic inline box is not at the
+                // end of the line, so it does not hang.
+                if layout.data.inline_boxes[line_item.index]
+                    .inline_box
+                    .kind
+                    .is_edge()
+                {
+                    break;
+                }
+            }
             LayoutItemKind::TextRun => {
                 // Trailing whitespace can only hang if it ends up at the line's end edge after bidi
                 // reordering. We don't currently apply UAX #9 L1 (resetting trailing whitespace to

@@ -113,7 +113,10 @@ impl<'a, B: Brush> Cluster<'a, B> {
                             return Some((cluster, side));
                         }
                     }
-                    LineItem::OutOfFlowBox(_) => {}
+                    // machopo: the edges of non-atomic inline boxes take up their width.
+                    LineItem::OutOfFlowBox(box_index) => {
+                        offset += layout.data.edge_width(box_index);
+                    }
                 }
             }
         }
@@ -460,7 +463,10 @@ impl<'a, B: Brush> Cluster<'a, B> {
                         }
                     }
                 }
-                LineItem::OutOfFlowBox(_) => {}
+                // machopo: the edges of non-atomic inline boxes take up their width.
+                LineItem::OutOfFlowBox(box_index) => {
+                    offset += line.layout.data.edge_width(box_index);
+                }
             }
         }
         Some(offset)
