@@ -92,6 +92,17 @@ impl<B: Brush> TreeStyleBuilder<B> {
         self.current_span = 0;
     }
 
+    /// machopo: applies `property` to the root style, which nothing may have been pushed
+    /// under yet: the spans and runs pushed since would keep the style it was.
+    pub(crate) fn push_default(&mut self, property: ResolvedProperty<B>) {
+        assert!(
+            self.tree.len() == 1 && self.text.is_empty() && self.pending_whitespace.is_none(),
+            "the root style is set before anything is pushed"
+        );
+        self.tree[0].style.apply(property);
+        self.style_table[0] = self.tree[0].style.clone();
+    }
+
     /// Appends a U+FFFC OBJECT REPLACEMENT CHARACTER representing an
     /// [`crate::InlineBoxKind::InFlow`] to the current span.
     ///

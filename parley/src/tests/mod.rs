@@ -15,4 +15,5 @@ mod test_shaped_text_sharing;
 mod test_soft_hyphens;
 mod test_style_metrics;
 mod test_tab_stops;
+mod test_tree_default;
 mod utils;

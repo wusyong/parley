@@ -278,6 +278,22 @@ pub struct TreeBuilder<'a, B: Brush> {
 }
 
 impl<'b, B: Brush> TreeBuilder<'b, B> {
+    /// machopo: sets a property of the root style, as [`RangedBuilder::push_default`] does
+    /// for a ranged layout: for a property the root [`TextStyle`] can't hold, such as
+    /// [`StyleProperty::FontFamilyIds`]. The root style is also that of a layout with no text
+    /// and of a line with nothing on it, which a span around the text doesn't reach.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a span, text or an inline box has been pushed.
+    pub fn push_default<'a>(&mut self, property: impl Into<StyleProperty<'a, B>>) {
+        let resolved =
+            self.lcx
+                .rcx
+                .resolve_property(self.fcx, &property.into(), self.options.scale);
+        self.lcx.tree_style_builder.push_default(resolved);
+    }
+
     pub fn push_style_span(&mut self, style: TextStyle<'_, '_, B>) {
         let resolved = self
             .lcx
